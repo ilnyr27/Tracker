@@ -46,8 +46,8 @@ export default function LoginPage() {
       {/* Background gradient orbs */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <motion.div
-          className="absolute -top-40 -left-40 h-80 w-80 rounded-full opacity-20 blur-3xl"
-          style={{ background: "oklch(0.6 0.22 264)" }}
+          className="absolute -top-40 -left-40 h-80 w-80 rounded-full opacity-20 dark:opacity-20 opacity-30 blur-3xl"
+          style={{ background: "var(--ring)" }}
           animate={{
             x: [0, 30, 0],
             y: [0, -20, 0],
@@ -55,8 +55,8 @@ export default function LoginPage() {
           transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
         />
         <motion.div
-          className="absolute -bottom-40 -right-40 h-96 w-96 rounded-full opacity-15 blur-3xl"
-          style={{ background: "oklch(0.55 0.25 300)" }}
+          className="absolute -bottom-40 -right-40 h-96 w-96 rounded-full opacity-10 dark:opacity-15 blur-3xl"
+          style={{ background: "var(--primary)" }}
           animate={{
             x: [0, -20, 0],
             y: [0, 30, 0],

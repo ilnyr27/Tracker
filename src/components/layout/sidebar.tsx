@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { motion } from "motion/react";
+import { ThemeToggle } from "./theme-toggle";
 
 const navItems = [
   { href: "/today", label: "Сегодня", icon: Sun },
@@ -84,6 +85,7 @@ export function Sidebar() {
 
       {/* Bottom */}
       <div className="border-t border-border/50 p-3 space-y-0.5">
+        <ThemeToggle compact />
         <Link
           href="/settings"
           className={cn(

@@ -48,8 +48,44 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-/* Dark theme by default — personal tracker, always dark */
+/* ===== LIGHT THEME (default) — warm gold accent ===== */
 :root {
+  --background: oklch(0.98 0.003 80);
+  --foreground: oklch(0.15 0.01 60);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.15 0.01 60);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.15 0.01 60);
+  --primary: oklch(0.55 0.16 50);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.95 0.01 80);
+  --secondary-foreground: oklch(0.2 0.01 60);
+  --muted: oklch(0.95 0.005 80);
+  --muted-foreground: oklch(0.5 0.02 60);
+  --accent: oklch(0.94 0.015 80);
+  --accent-foreground: oklch(0.2 0.01 60);
+  --destructive: oklch(0.55 0.22 25);
+  --border: oklch(0.9 0.01 80);
+  --input: oklch(0.93 0.008 80);
+  --ring: oklch(0.55 0.16 50);
+  --chart-1: oklch(0.55 0.16 50);
+  --chart-2: oklch(0.6 0.15 160);
+  --chart-3: oklch(0.55 0.18 330);
+  --chart-4: oklch(0.65 0.15 80);
+  --chart-5: oklch(0.5 0.2 30);
+  --radius: 0.75rem;
+  --sidebar: oklch(0.97 0.005 80);
+  --sidebar-foreground: oklch(0.15 0.01 60);
+  --sidebar-primary: oklch(0.55 0.16 50);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent: oklch(0.94 0.015 50);
+  --sidebar-accent-foreground: oklch(0.2 0.01 60);
+  --sidebar-border: oklch(0.9 0.01 80);
+  --sidebar-ring: oklch(0.55 0.16 50);
+}
+
+/* ===== DARK THEME — violet-blue accent ===== */
+.dark {
   --background: oklch(0.13 0.005 270);
   --foreground: oklch(0.95 0 0);
   --card: oklch(0.18 0.008 270);
@@ -73,7 +109,6 @@
   --chart-3: oklch(0.65 0.18 330);
   --chart-4: oklch(0.75 0.15 80);
   --chart-5: oklch(0.6 0.2 30);
-  --radius: 0.75rem;
   --sidebar: oklch(0.15 0.008 270);
   --sidebar-foreground: oklch(0.9 0 0);
   --sidebar-primary: oklch(0.65 0.2 264);
@@ -97,12 +132,21 @@
   }
 }
 
-/* Gradient accent utility */
+/* Gradient accent utility — adapts to theme */
 .gradient-primary {
+  background: linear-gradient(135deg, oklch(0.5 0.18 50) 0%, oklch(0.55 0.16 30) 100%);
+}
+.dark .gradient-primary {
   background: linear-gradient(135deg, oklch(0.6 0.22 264) 0%, oklch(0.55 0.25 300) 100%);
 }
 
 .gradient-text {
+  background: linear-gradient(135deg, oklch(0.45 0.18 50) 0%, oklch(0.5 0.16 30) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.dark .gradient-text {
   background: linear-gradient(135deg, oklch(0.7 0.2 264) 0%, oklch(0.65 0.22 300) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -111,13 +155,19 @@
 
 /* Glass effect for cards */
 .glass {
-  background: oklch(0.18 0.008 270 / 80%);
+  background: oklch(1 0 0 / 80%);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
+}
+.dark .glass {
+  background: oklch(0.18 0.008 270 / 80%);
 }
 
 /* Subtle glow on focus */
 .glow-ring:focus-within {
+  box-shadow: 0 0 0 2px oklch(0.55 0.16 50 / 30%);
+}
+.dark .glow-ring:focus-within {
   box-shadow: 0 0 0 2px oklch(0.6 0.2 264 / 30%);
 }
 
