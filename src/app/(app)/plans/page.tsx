@@ -1,8 +1,14 @@
+"use client";
+
+import { ComingSoon } from "@/components/layout/coming-soon";
+import { Map } from "lucide-react";
+
 export default function PlansPage() {
   return (
-    <div className="p-4">
-      <h1 className="text-2xl font-bold mb-4">Планы</h1>
-      <p className="text-muted-foreground">Скоро здесь будут планы...</p>
-    </div>
+    <ComingSoon
+      icon={Map}
+      title="Планы"
+      description="Планирование на день, неделю, месяц, год и десятилетие. Скоро."
+    />
   );
 }

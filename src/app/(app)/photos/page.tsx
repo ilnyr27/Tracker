@@ -1,8 +1,14 @@
+"use client";
+
+import { ComingSoon } from "@/components/layout/coming-soon";
+import { Camera } from "lucide-react";
+
 export default function PhotosPage() {
   return (
-    <div className="p-4">
-      <h1 className="text-2xl font-bold mb-4">Фото</h1>
-      <p className="text-muted-foreground">Скоро здесь будет фото-дневник...</p>
-    </div>
+    <ComingSoon
+      icon={Camera}
+      title="Фото-дневник"
+      description="Загружай фото каждый день и выбирай лучшие. Скоро."
+    />
   );
 }

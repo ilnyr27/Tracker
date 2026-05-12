@@ -1,8 +1,14 @@
+"use client";
+
+import { ComingSoon } from "@/components/layout/coming-soon";
+import { CalendarDays } from "lucide-react";
+
 export default function CalendarPage() {
   return (
-    <div className="p-4">
-      <h1 className="text-2xl font-bold mb-4">Календарь</h1>
-      <p className="text-muted-foreground">Скоро здесь будет календарь...</p>
-    </div>
+    <ComingSoon
+      icon={CalendarDays}
+      title="Календарь"
+      description="Месячный вид с цветовой индикацией прогресса по дням. Скоро."
+    />
   );
 }

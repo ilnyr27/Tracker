@@ -1,8 +1,14 @@
+"use client";
+
+import { ComingSoon } from "@/components/layout/coming-soon";
+import { Table2 } from "lucide-react";
+
 export default function TablePage() {
   return (
-    <div className="p-4">
-      <h1 className="text-2xl font-bold mb-4">Таблица</h1>
-      <p className="text-muted-foreground">Скоро здесь будет большая таблица...</p>
-    </div>
+    <ComingSoon
+      icon={Table2}
+      title="Таблица"
+      description="Полный вид как в Excel — все дни и категории. Скоро."
+    />
   );
 }

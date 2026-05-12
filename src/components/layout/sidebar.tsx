@@ -13,11 +13,11 @@ import {
   Layers,
   Settings,
   LogOut,
-  Target as Logo,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
+import { motion } from "motion/react";
 
 const navItems = [
   { href: "/today", label: "Сегодня", icon: Sun },
@@ -41,46 +41,56 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="hidden md:flex md:w-60 lg:w-64 flex-col border-r bg-sidebar h-screen sticky top-0">
-      <div className="flex items-center gap-2 p-4 border-b">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-          <Logo className="h-4 w-4 text-primary-foreground" />
+    <aside className="hidden md:flex md:w-60 lg:w-64 flex-col border-r border-border/50 bg-sidebar h-screen sticky top-0">
+      {/* Logo */}
+      <div className="flex items-center gap-3 p-5 border-b border-border/50">
+        <div className="flex h-9 w-9 items-center justify-center rounded-xl gradient-primary shadow-md shadow-primary/20">
+          <Target className="h-5 w-5 text-white" />
         </div>
-        <span className="font-semibold text-lg">Life Tracker</span>
+        <span className="font-bold text-lg gradient-text">Life Tracker</span>
       </div>
 
-      <nav className="flex-1 space-y-1 p-3">
-        {navItems.map((item) => {
+      {/* Nav */}
+      <nav className="flex-1 space-y-0.5 p-3 mt-1">
+        {navItems.map((navItem) => {
           const isActive =
-            pathname === item.href ||
-            (item.href !== "/today" && pathname.startsWith(item.href));
+            pathname === navItem.href ||
+            (navItem.href !== "/today" && pathname.startsWith(navItem.href));
 
           return (
             <Link
-              key={item.href}
-              href={item.href}
+              key={navItem.href}
+              href={navItem.href}
               className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
+                "relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all duration-200",
                 isActive
-                  ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
-                  : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+                  ? "text-primary font-medium"
+                  : "text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent/50"
               )}
             >
-              <item.icon className="h-4 w-4" />
-              {item.label}
+              {isActive && (
+                <motion.div
+                  layoutId="sidebar-active"
+                  className="absolute inset-0 rounded-xl bg-primary/10 border border-primary/20"
+                  transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                />
+              )}
+              <navItem.icon className="relative h-4.5 w-4.5" />
+              <span className="relative">{navItem.label}</span>
             </Link>
           );
         })}
       </nav>
 
-      <div className="border-t p-3 space-y-1">
+      {/* Bottom */}
+      <div className="border-t border-border/50 p-3 space-y-0.5">
         <Link
           href="/settings"
           className={cn(
-            "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
+            "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors",
             pathname === "/settings"
-              ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
-              : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50"
+              ? "text-primary font-medium bg-primary/10"
+              : "text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent/50"
           )}
         >
           <Settings className="h-4 w-4" />
@@ -88,7 +98,7 @@ export function Sidebar() {
         </Link>
         <button
           onClick={handleLogout}
-          className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/70 hover:bg-sidebar-accent/50 transition-colors"
+          className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-sidebar-foreground/40 hover:text-destructive hover:bg-destructive/5 transition-colors"
         >
           <LogOut className="h-4 w-4" />
           Выйти

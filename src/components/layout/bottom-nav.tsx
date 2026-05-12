@@ -10,13 +10,14 @@ import {
   Plus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { motion } from "motion/react";
 
 const navItems = [
   { href: "/today", label: "Сегодня", icon: Sun },
   { href: "/calendar", label: "Календарь", icon: CalendarDays },
   { href: "/_fab", label: "", icon: Plus, isFab: true },
   { href: "/journal", label: "Журнал", icon: BookOpen },
-  { href: "/more", label: "Ещё", icon: LayoutGrid },
+  { href: "/goals", label: "Ещё", icon: LayoutGrid },
 ];
 
 type BottomNavProps = {
@@ -27,18 +28,19 @@ export function BottomNav({ onFabClick }: BottomNavProps) {
   const pathname = usePathname();
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 md:hidden">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-border/50 bg-background/90 backdrop-blur-xl md:hidden pb-safe">
       <div className="flex items-center justify-around h-16 px-2">
         {navItems.map((item) => {
           if (item.isFab) {
             return (
-              <button
+              <motion.button
                 key="fab"
                 onClick={onFabClick}
-                className="flex h-12 w-12 -mt-4 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg active:scale-95 transition-transform"
+                whileTap={{ scale: 0.9 }}
+                className="flex h-12 w-12 -mt-5 items-center justify-center rounded-2xl gradient-primary text-white shadow-lg shadow-primary/25"
               >
                 <Plus className="h-6 w-6" />
-              </button>
+              </motion.button>
             );
           }
 
@@ -49,16 +51,21 @@ export function BottomNav({ onFabClick }: BottomNavProps) {
           return (
             <Link
               key={item.href}
-              href={item.href === "/more" ? "/goals" : item.href}
+              href={item.href}
               className={cn(
-                "flex flex-col items-center gap-0.5 px-3 py-1 text-xs transition-colors",
-                isActive
-                  ? "text-primary"
-                  : "text-muted-foreground"
+                "relative flex flex-col items-center gap-0.5 px-3 py-1.5 text-[10px] transition-colors",
+                isActive ? "text-primary" : "text-muted-foreground/60"
               )}
             >
               <item.icon className="h-5 w-5" />
               <span>{item.label}</span>
+              {isActive && (
+                <motion.div
+                  layoutId="nav-indicator"
+                  className="absolute -top-px left-2 right-2 h-0.5 rounded-full gradient-primary"
+                  transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                />
+              )}
             </Link>
           );
         })}
