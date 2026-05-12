@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { format, addDays, subDays, isToday as checkIsToday } from "date-fns";
+import { format, addDays, subDays, isToday as checkIsToday, parseISO } from "date-fns";
 import { ru } from "date-fns/locale";
 import {
   ChevronLeft,
@@ -43,7 +44,27 @@ const item = {
 };
 
 export default function TodayPage() {
-  const [currentDate, setCurrentDate] = useState(new Date());
+  return (
+    <Suspense fallback={
+      <div className="mx-auto max-w-2xl p-4">
+        <div className="space-y-3">
+          {[...Array(5)].map((_, i) => (
+            <div key={i} className="h-20 rounded-2xl bg-card animate-pulse" />
+          ))}
+        </div>
+      </div>
+    }>
+      <TodayContent />
+    </Suspense>
+  );
+}
+
+function TodayContent() {
+  const searchParams = useSearchParams();
+  const dateParam = searchParams.get("date");
+  const [currentDate, setCurrentDate] = useState(() =>
+    dateParam ? parseISO(dateParam) : new Date()
+  );
   const [categories, setCategories] = useState<Category[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
