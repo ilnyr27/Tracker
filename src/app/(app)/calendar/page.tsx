@@ -11,14 +11,20 @@ import {
   eachDayOfInterval,
   addMonths,
   subMonths,
+  subDays,
   isToday,
   isSameMonth,
+  isSameDay,
+  startOfDay,
 } from "date-fns";
 import { ru } from "date-fns/locale";
 import {
   ChevronLeft,
   ChevronRight,
   CalendarDays,
+  Flame,
+  Trophy,
+  TrendingUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "motion/react";
@@ -324,6 +330,14 @@ export default function CalendarPage() {
           <span>100%</span>
         </div>
       </div>
+
+      {/* Dashboard Stats */}
+      {!loading && tasks.length > 0 && (
+        <>
+          <StreakStats tasks={tasks} />
+          <CategoryBreakdown tasks={tasks} categories={categories} monthStart={monthStart} monthEnd={monthEnd} />
+        </>
+      )}
     </div>
   );
 }
@@ -375,6 +389,174 @@ function MonthSummary({
       <div className="mt-2 flex items-center gap-4 text-xs text-muted-foreground">
         <span>{daysWithTasks} дн. с задачами</span>
         <span>{percent}% выполнено</span>
+      </div>
+    </motion.div>
+  );
+}
+
+function StreakStats({ tasks }: { tasks: Task[] }) {
+  // Calculate current streak: consecutive days (ending today or yesterday) where all tasks were completed
+  const today = startOfDay(new Date());
+  const tasksByDate = new Map<string, { total: number; done: number }>();
+
+  for (const task of tasks) {
+    if (!task.scheduled_date) continue;
+    const existing = tasksByDate.get(task.scheduled_date) || { total: 0, done: 0 };
+    existing.total++;
+    if (task.is_done) existing.done++;
+    tasksByDate.set(task.scheduled_date, existing);
+  }
+
+  let streak = 0;
+  let checkDay = today;
+  // Allow starting from today or yesterday
+  const todayStr = format(today, "yyyy-MM-dd");
+  const todayStats = tasksByDate.get(todayStr);
+  if (!todayStats || todayStats.done < todayStats.total) {
+    checkDay = subDays(today, 1);
+  }
+
+  for (let i = 0; i < 60; i++) {
+    const dateStr = format(checkDay, "yyyy-MM-dd");
+    const stats = tasksByDate.get(dateStr);
+    if (stats && stats.total > 0 && stats.done === stats.total) {
+      streak++;
+      checkDay = subDays(checkDay, 1);
+    } else if (stats && stats.total > 0) {
+      break;
+    } else {
+      // No tasks that day — skip (don't break streak for empty days)
+      checkDay = subDays(checkDay, 1);
+    }
+  }
+
+  // Best day this month
+  let bestDay = "";
+  let bestPercent = 0;
+  for (const [date, stats] of tasksByDate) {
+    if (stats.total >= 2) {
+      const pct = stats.done / stats.total;
+      if (pct > bestPercent || (pct === bestPercent && stats.total > (tasksByDate.get(bestDay)?.total || 0))) {
+        bestPercent = pct;
+        bestDay = date;
+      }
+    }
+  }
+
+  // Total completed this month
+  let totalDone = 0;
+  for (const stats of tasksByDate.values()) {
+    totalDone += stats.done;
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.1 }}
+      className="mt-6 grid grid-cols-3 gap-3"
+    >
+      <div className="rounded-2xl border border-border/50 bg-card/80 p-3 text-center">
+        <Flame className="h-5 w-5 mx-auto mb-1 text-orange-500" />
+        <div className="text-2xl font-bold">{streak}</div>
+        <div className="text-[10px] text-muted-foreground">
+          {streak === 1 ? "день подряд" : streak >= 2 && streak <= 4 ? "дня подряд" : "дней подряд"}
+        </div>
+      </div>
+      <div className="rounded-2xl border border-border/50 bg-card/80 p-3 text-center">
+        <Trophy className="h-5 w-5 mx-auto mb-1 text-yellow-500" />
+        <div className="text-2xl font-bold">{totalDone}</div>
+        <div className="text-[10px] text-muted-foreground">выполнено</div>
+      </div>
+      <div className="rounded-2xl border border-border/50 bg-card/80 p-3 text-center">
+        <TrendingUp className="h-5 w-5 mx-auto mb-1 text-green-500" />
+        <div className="text-2xl font-bold">
+          {bestDay ? format(new Date(bestDay + "T00:00:00"), "d MMM", { locale: ru }) : "—"}
+        </div>
+        <div className="text-[10px] text-muted-foreground">лучший день</div>
+      </div>
+    </motion.div>
+  );
+}
+
+function CategoryBreakdown({
+  tasks,
+  categories,
+  monthStart,
+  monthEnd,
+}: {
+  tasks: Task[];
+  categories: Category[];
+  monthStart: Date;
+  monthEnd: Date;
+}) {
+  const startStr = format(monthStart, "yyyy-MM-dd");
+  const endStr = format(monthEnd, "yyyy-MM-dd");
+
+  const monthTasks = tasks.filter((t) => {
+    if (!t.scheduled_date) return false;
+    return t.scheduled_date >= startStr && t.scheduled_date <= endStr;
+  });
+
+  // Group by category
+  const catStats = new Map<string, { total: number; done: number }>();
+  for (const task of monthTasks) {
+    const catId = task.category_id || "uncategorized";
+    const existing = catStats.get(catId) || { total: 0, done: 0 };
+    existing.total++;
+    if (task.is_done) existing.done++;
+    catStats.set(catId, existing);
+  }
+
+  const catMap = new Map(categories.map((c) => [c.id, c]));
+  const entries = Array.from(catStats.entries())
+    .map(([catId, stats]) => ({
+      category: catMap.get(catId),
+      ...stats,
+    }))
+    .filter((e) => e.category)
+    .sort((a, b) => b.total - a.total);
+
+  if (entries.length === 0) return null;
+
+  const maxTotal = Math.max(...entries.map((e) => e.total));
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.2 }}
+      className="mt-4 rounded-2xl border border-border/50 bg-card/80 p-4"
+    >
+      <h3 className="text-xs font-medium text-muted-foreground mb-3">
+        По категориям
+      </h3>
+      <div className="space-y-2.5">
+        {entries.map(({ category: cat, total, done }) => {
+          if (!cat) return null;
+          const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+          const barWidth = (total / maxTotal) * 100;
+
+          return (
+            <div key={cat.id}>
+              <div className="flex items-center justify-between mb-0.5">
+                <span className="text-xs font-medium truncate flex-1">{cat.name}</span>
+                <span className="text-[10px] text-muted-foreground ml-2">
+                  {done}/{total} · {pct}%
+                </span>
+              </div>
+              <div className="h-2 rounded-full bg-muted overflow-hidden" style={{ width: `${barWidth}%`, minWidth: "40px" }}>
+                <motion.div
+                  className="h-full rounded-full"
+                  style={{ backgroundColor: cat.color || "#666" }}
+                  initial={{ width: 0 }}
+                  animate={{ width: `${pct}%` }}
+                  transition={{ duration: 0.5, delay: 0.05 }}
+                />
+              </div>
+            </div>
+          );
+        })}
       </div>
     </motion.div>
   );

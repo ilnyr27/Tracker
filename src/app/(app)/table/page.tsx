@@ -22,12 +22,13 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion } from "motion/react";
-import type { Task, Category } from "@/lib/supabase/types";
+import type { Task, Category, DailyEntry } from "@/lib/supabase/types";
 
 export default function TablePage() {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [tasks, setTasks] = useState<Task[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [entries, setEntries] = useState<DailyEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const todayRef = useRef<HTMLTableRowElement>(null);
 
@@ -42,7 +43,7 @@ export default function TablePage() {
     setLoading(true);
     const supabase = createClient();
 
-    const [taskRes, catRes] = await Promise.all([
+    const [taskRes, catRes, entryRes] = await Promise.all([
       supabase
         .from("tasks")
         .select("*")
@@ -54,10 +55,16 @@ export default function TablePage() {
         .select("*")
         .eq("is_active", true)
         .order("sort_order"),
+      supabase
+        .from("daily_entries")
+        .select("*")
+        .gte("entry_date", startStr)
+        .lte("entry_date", endStr),
     ]);
 
     if (taskRes.data) setTasks(taskRes.data);
     if (catRes.data) setCategories(catRes.data);
+    if (entryRes.data) setEntries(entryRes.data);
     setLoading(false);
   }, [startStr, endStr]);
 
@@ -80,6 +87,42 @@ export default function TablePage() {
     const catId = task.category_id || "none";
     if (!catMap.has(catId)) catMap.set(catId, []);
     catMap.get(catId)!.push(task);
+  }
+
+  // Build entry lookup: dateStr -> categoryId -> content
+  const entryMap = new Map<string, Map<string, string>>();
+  for (const entry of entries) {
+    if (!entry.content) continue;
+    if (!entryMap.has(entry.entry_date)) entryMap.set(entry.entry_date, new Map());
+    entryMap.get(entry.entry_date)!.set(entry.category_id, entry.content);
+  }
+
+  async function toggleTask(taskId: string) {
+    const task = tasks.find((t) => t.id === taskId);
+    if (!task) return;
+    const newDone = !task.is_done;
+    setTasks((prev) =>
+      prev.map((t) =>
+        t.id === taskId
+          ? { ...t, is_done: newDone, completed_at: newDone ? new Date().toISOString() : null }
+          : t
+      )
+    );
+    const supabase = createClient();
+    await supabase
+      .from("tasks")
+      .update({ is_done: newDone, completed_at: newDone ? new Date().toISOString() : null })
+      .eq("id", taskId);
+  }
+
+  // Month totals per category
+  const catTotals = new Map<string, { total: number; done: number }>();
+  for (const task of tasks) {
+    const catId = task.category_id || "none";
+    const existing = catTotals.get(catId) || { total: 0, done: 0 };
+    existing.total++;
+    if (task.is_done) existing.done++;
+    catTotals.set(catId, existing);
   }
 
   const isCurrentMonth = isSameMonth(currentMonth, new Date());
@@ -162,12 +205,15 @@ export default function TablePage() {
                 {categories.map((cat) => (
                   <th
                     key={cat.id}
-                    className="text-left px-3 py-2.5 font-medium border-b border-border/50 min-w-[120px]"
+                    className="text-left px-3 py-2.5 font-medium border-b border-border/50 min-w-[140px]"
                     style={{ color: cat.color || undefined }}
                   >
                     {cat.name}
                   </th>
                 ))}
+                <th className="text-center px-3 py-2.5 font-medium text-muted-foreground border-b border-border/50 min-w-[60px]">
+                  Итого
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -177,6 +223,9 @@ export default function TablePage() {
                 const dayName = format(day, "EEEEEE", { locale: ru });
                 const isWeekend = day.getDay() === 0 || day.getDay() === 6;
                 const dateTasks = taskMap.get(dateStr);
+                const allDayTasks = dateTasks ? Array.from(dateTasks.values()).flat() : [];
+                const dayTotal = allDayTasks.length;
+                const dayDone = allDayTasks.filter((t) => t.is_done).length;
 
                 return (
                   <tr
@@ -201,19 +250,20 @@ export default function TablePage() {
                     {/* Category cells */}
                     {categories.map((cat) => {
                       const catTasks = dateTasks?.get(cat.id) || [];
-                      const done = catTasks.filter((t) => t.is_done).length;
+                      const entryText = entryMap.get(dateStr)?.get(cat.id);
 
                       return (
                         <td
                           key={cat.id}
                           className="px-3 py-1.5 align-top border-l border-border/20"
                         >
-                          {catTasks.length > 0 ? (
+                          {catTasks.length > 0 && (
                             <div className="space-y-0.5">
                               {catTasks.map((task) => (
-                                <div
+                                <button
                                   key={task.id}
-                                  className={`flex items-center gap-1 ${
+                                  onClick={() => toggleTask(task.id)}
+                                  className={`flex items-center gap-1 w-full text-left cursor-pointer hover:opacity-80 transition-opacity ${
                                     task.is_done
                                       ? "text-muted-foreground/50 line-through"
                                       : ""
@@ -235,19 +285,68 @@ export default function TablePage() {
                                   <span className="truncate">
                                     {task.title}
                                   </span>
-                                </div>
+                                </button>
                               ))}
                             </div>
-                          ) : (
+                          )}
+                          {entryText && (
+                            <p className={`text-muted-foreground/60 italic truncate ${catTasks.length > 0 ? "mt-1 pt-1 border-t border-border/10" : ""}`} title={entryText}>
+                              {entryText}
+                            </p>
+                          )}
+                          {catTasks.length === 0 && !entryText && (
                             <span className="text-muted-foreground/20">—</span>
                           )}
                         </td>
                       );
                     })}
+
+                    {/* Day summary */}
+                    <td className="px-3 py-1.5 text-center border-l border-border/30 whitespace-nowrap">
+                      {dayTotal > 0 ? (
+                        <span className={dayDone === dayTotal ? "text-green-500 font-medium" : "text-muted-foreground"}>
+                          {dayDone}/{dayTotal}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground/20">—</span>
+                      )}
+                    </td>
                   </tr>
                 );
               })}
             </tbody>
+            <tfoot className="sticky bottom-0 bg-card border-t-2 border-border/50">
+              <tr>
+                <td className="px-3 py-2.5 font-medium text-muted-foreground sticky left-0 bg-card z-20">
+                  Итого
+                </td>
+                {categories.map((cat) => {
+                  const stats = catTotals.get(cat.id);
+                  const pct = stats && stats.total > 0 ? Math.round((stats.done / stats.total) * 100) : 0;
+                  return (
+                    <td key={cat.id} className="px-3 py-2.5 border-l border-border/20">
+                      {stats && stats.total > 0 ? (
+                        <div>
+                          <span className="font-medium" style={{ color: cat.color || undefined }}>
+                            {stats.done}/{stats.total}
+                          </span>
+                          <span className="text-muted-foreground/50 ml-1">({pct}%)</span>
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground/20">—</span>
+                      )}
+                    </td>
+                  );
+                })}
+                <td className="px-3 py-2.5 text-center border-l border-border/30 font-medium">
+                  {tasks.length > 0 ? (
+                    <span className={tasks.filter((t) => t.is_done).length === tasks.length ? "text-green-500" : "text-primary"}>
+                      {tasks.filter((t) => t.is_done).length}/{tasks.length}
+                    </span>
+                  ) : "—"}
+                </td>
+              </tr>
+            </tfoot>
           </table>
         </motion.div>
       )}

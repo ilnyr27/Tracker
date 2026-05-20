@@ -6,7 +6,7 @@ import { format } from "date-fns";
 import { ru } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Send, Trash2 } from "lucide-react";
+import { Send, Trash2, Search, X } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import type { Note } from "@/lib/supabase/types";
 
@@ -14,6 +14,8 @@ export default function JournalPage() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [newNote, setNewNote] = useState("");
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searching, setSearching] = useState(false);
 
   useEffect(() => {
     loadNotes();
@@ -67,8 +69,14 @@ export default function JournalPage() {
     }
   }
 
-  // Group notes by date
-  const grouped = notes.reduce<Record<string, Note[]>>((acc, note) => {
+  // Filter + group notes by date
+  const filteredNotes = searchQuery.trim()
+    ? notes.filter((n) =>
+        n.content.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : notes;
+
+  const grouped = filteredNotes.reduce<Record<string, Note[]>>((acc, note) => {
     const date = note.note_date;
     if (!acc[date]) acc[date] = [];
     acc[date].push(note);
@@ -77,9 +85,47 @@ export default function JournalPage() {
 
   return (
     <div className="mx-auto max-w-2xl p-4 flex flex-col h-[calc(100vh-5rem)] md:h-screen">
-      <h1 className="text-xl font-bold mb-4 gradient-text">
-        Журнал мыслей
-      </h1>
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-xl font-bold gradient-text">
+          Журнал мыслей
+        </h1>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-9 w-9 rounded-xl"
+          onClick={() => {
+            setSearching(!searching);
+            if (searching) setSearchQuery("");
+          }}
+        >
+          {searching ? <X className="h-4 w-4" /> : <Search className="h-4 w-4" />}
+        </Button>
+      </div>
+
+      {searching && (
+        <motion.div
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: "auto" }}
+          exit={{ opacity: 0, height: 0 }}
+          className="mb-3"
+        >
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/40" />
+            <input
+              autoFocus
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Поиск по заметкам..."
+              className="w-full rounded-xl border border-border/50 bg-card/60 pl-9 pr-4 py-2 text-sm outline-none placeholder:text-muted-foreground/40 focus:ring-1 focus:ring-primary/30 transition-all"
+            />
+          </div>
+          {searchQuery && (
+            <p className="text-[10px] text-muted-foreground/50 mt-1 px-1">
+              Найдено: {filteredNotes.length}
+            </p>
+          )}
+        </motion.div>
+      )}
 
       {/* Notes Feed */}
       <div className="flex-1 overflow-y-auto space-y-5 mb-4 scrollbar-thin">

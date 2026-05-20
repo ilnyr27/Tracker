@@ -4,8 +4,9 @@ import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { LogOut, Palette } from "lucide-react";
+import { LogOut, Palette, Repeat, ChevronRight } from "lucide-react";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
+import Link from "next/link";
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -32,6 +33,24 @@ export default function SettingsPage() {
             <span className="text-sm text-muted-foreground">Тема</span>
             <ThemeToggle />
           </div>
+        </CardContent>
+      </Card>
+
+      <Card className="border-border/50 bg-card/80">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Repeat className="h-4 w-4 text-primary" />
+            Задачи
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Link
+            href="/settings/recurring"
+            className="flex items-center justify-between py-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <span>Повторяющиеся задачи</span>
+            <ChevronRight className="h-4 w-4" />
+          </Link>
         </CardContent>
       </Card>
 

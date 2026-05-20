@@ -3,12 +3,11 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  Sun,
+  Home,
+  Grid3X3,
   CalendarDays,
   Target,
-  Map,
   BookOpen,
-  Camera,
   Table2,
   Layers,
   Settings,
@@ -20,15 +19,42 @@ import { useRouter } from "next/navigation";
 import { motion } from "motion/react";
 import { ThemeToggle } from "./theme-toggle";
 
-const navItems = [
-  { href: "/today", label: "Сегодня", icon: Sun },
-  { href: "/calendar", label: "Календарь", icon: CalendarDays },
-  { href: "/goals", label: "Цели", icon: Target },
-  { href: "/plans", label: "Планы", icon: Map },
-  { href: "/journal", label: "Журнал", icon: BookOpen },
-  { href: "/photos", label: "Фото", icon: Camera },
-  { href: "/table", label: "Таблица", icon: Table2 },
-  { href: "/sheets", label: "Листы", icon: Layers },
+/*
+ * Sidebar grouped by user mental model:
+ *
+ * Ежедневное — what you open every day
+ * Цели      — the A→Б journey (goals + plans merged)
+ * Записи    — capturing life moments
+ * Данные    — deep analysis view
+ */
+const navGroups = [
+  {
+    label: "Ежедневное",
+    items: [
+      { href: "/today", label: "Главная", icon: Home },
+      { href: "/tabel", label: "Матрица жизни", icon: Grid3X3 },
+      { href: "/calendar", label: "Обзор", icon: CalendarDays },
+    ],
+  },
+  {
+    label: "Цели",
+    items: [
+      { href: "/goals", label: "Путь А → Б", icon: Target },
+    ],
+  },
+  {
+    label: "Записи",
+    items: [
+      { href: "/journal", label: "Журнал", icon: BookOpen },
+    ],
+  },
+  {
+    label: "Данные",
+    items: [
+      { href: "/table", label: "Таблица", icon: Table2 },
+      { href: "/sheets", label: "Листы", icon: Layers },
+    ],
+  },
 ];
 
 export function Sidebar() {
@@ -51,36 +77,52 @@ export function Sidebar() {
         <span className="font-bold text-lg gradient-text">Life Tracker</span>
       </div>
 
-      {/* Nav */}
-      <nav className="flex-1 space-y-0.5 p-3 mt-1">
-        {navItems.map((navItem) => {
-          const isActive =
-            pathname === navItem.href ||
-            (navItem.href !== "/today" && pathname.startsWith(navItem.href));
+      {/* Nav Groups */}
+      <nav className="flex-1 overflow-y-auto p-3 mt-1 space-y-4">
+        {navGroups.map((group) => (
+          <div key={group.label}>
+            <div className="px-3 mb-1">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/40">
+                {group.label}
+              </span>
+            </div>
+            <div className="space-y-0.5">
+              {group.items.map((navItem) => {
+                const isActive =
+                  pathname === navItem.href ||
+                  (navItem.href !== "/today" &&
+                    pathname.startsWith(navItem.href));
 
-          return (
-            <Link
-              key={navItem.href}
-              href={navItem.href}
-              className={cn(
-                "relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all duration-200",
-                isActive
-                  ? "text-primary font-medium"
-                  : "text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent/50"
-              )}
-            >
-              {isActive && (
-                <motion.div
-                  layoutId="sidebar-active"
-                  className="absolute inset-0 rounded-xl bg-primary/10 border border-primary/20"
-                  transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                />
-              )}
-              <navItem.icon className="relative h-4.5 w-4.5" />
-              <span className="relative">{navItem.label}</span>
-            </Link>
-          );
-        })}
+                return (
+                  <Link
+                    key={navItem.href}
+                    href={navItem.href}
+                    className={cn(
+                      "relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all duration-200",
+                      isActive
+                        ? "text-primary font-medium"
+                        : "text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent/50"
+                    )}
+                  >
+                    {isActive && (
+                      <motion.div
+                        layoutId="sidebar-active"
+                        className="absolute inset-0 rounded-xl bg-primary/10 border border-primary/20"
+                        transition={{
+                          type: "spring",
+                          stiffness: 300,
+                          damping: 30,
+                        }}
+                      />
+                    )}
+                    <navItem.icon className="relative h-4.5 w-4.5" />
+                    <span className="relative">{navItem.label}</span>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </nav>
 
       {/* Bottom */}

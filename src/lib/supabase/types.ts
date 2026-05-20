@@ -24,6 +24,8 @@ export type Goal = {
   week: number | null;
   status: "active" | "completed" | "deferred" | "cancelled";
   priority: "low" | "medium" | "high" | "critical" | null;
+  tracking_type: "habit" | "milestone";
+  target_days: number | null;
   image_url: string | null;
   sort_order: number;
   completed_at: string | null;
@@ -46,6 +48,7 @@ export type Task = {
   user_id: string;
   goal_id: string | null;
   category_id: string | null;
+  template_id: string | null;
   title: string;
   is_done: boolean;
   scheduled_date: string | null;
@@ -53,6 +56,21 @@ export type Task = {
   priority: "low" | "medium" | "high" | "critical" | null;
   sort_order: number;
   completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type TaskTemplate = {
+  id: string;
+  user_id: string;
+  category_id: string | null;
+  goal_id: string | null;
+  title: string;
+  priority: "low" | "medium" | "high" | "critical" | null;
+  recurrence: "daily" | "weekdays" | "weekly" | "monthly";
+  recurrence_days: number[];
+  is_active: boolean;
+  sort_order: number;
   created_at: string;
   updated_at: string;
 };

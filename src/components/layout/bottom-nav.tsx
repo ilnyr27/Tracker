@@ -3,22 +3,25 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  CalendarDays,
-  BookOpen,
-  LayoutGrid,
-  Sun,
+  Home,
+  Grid3X3,
   Plus,
+  CalendarDays,
+  MoreHorizontal,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion } from "motion/react";
 
 const navItems = [
-  { href: "/today", label: "Сегодня", icon: Sun },
-  { href: "/calendar", label: "Календарь", icon: CalendarDays },
+  { href: "/today", label: "Главная", icon: Home },
+  { href: "/tabel", label: "Матрица", icon: Grid3X3 },
   { href: "/_fab", label: "", icon: Plus, isFab: true },
-  { href: "/journal", label: "Журнал", icon: BookOpen },
-  { href: "/goals", label: "Ещё", icon: LayoutGrid },
+  { href: "/calendar", label: "Обзор", icon: CalendarDays },
+  { href: "/more", label: "Ещё", icon: MoreHorizontal },
 ];
+
+// "Ещё" page paths — highlight "Ещё" when on any of these
+const morePagePaths = ["/journal", "/goals", "/table", "/sheets", "/settings", "/more"];
 
 type BottomNavProps = {
   onFabClick: () => void;
@@ -45,8 +48,10 @@ export function BottomNav({ onFabClick }: BottomNavProps) {
           }
 
           const isActive =
-            pathname === item.href ||
-            (item.href !== "/today" && pathname.startsWith(item.href));
+            item.href === "/more"
+              ? morePagePaths.some((p) => pathname === p || pathname.startsWith(p + "/"))
+              : pathname === item.href ||
+                (item.href !== "/today" && pathname.startsWith(item.href));
 
           return (
             <Link

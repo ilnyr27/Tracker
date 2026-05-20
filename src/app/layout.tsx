@@ -24,6 +24,10 @@ export const metadata: Metadata = {
     statusBarStyle: "default",
     title: "Life Tracker",
   },
+  icons: {
+    icon: "/icons/icon.svg",
+    apple: "/icons/icon-192.png",
+  },
 };
 
 export const viewport: Viewport = {

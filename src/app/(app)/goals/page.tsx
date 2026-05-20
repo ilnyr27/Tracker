@@ -161,11 +161,28 @@ export default function GoalsPage() {
   const completedGoals = goals.filter((g) => g.status === "completed").length;
   const activeGoals = goals.filter((g) => g.status === "active").length;
 
+  // Per-category progress for A→B overview
+  const categoryProgress = categories.map((cat) => {
+    const catGoals = goals.filter((g) => g.category_id === cat.id);
+    const catDone = catGoals.filter((g) => g.status === "completed").length;
+    return {
+      category: cat,
+      total: catGoals.length,
+      done: catDone,
+      percent: catGoals.length > 0 ? Math.round((catDone / catGoals.length) * 100) : 0,
+    };
+  });
+
   return (
     <div className="mx-auto max-w-3xl p-4 pb-24 md:pb-4">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-xl font-bold gradient-text">Цели</h1>
+        <div>
+          <h1 className="text-xl font-bold gradient-text">Путь А → Б</h1>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Твои цели по всем направлениям жизни
+          </p>
+        </div>
         <Button
           size="sm"
           className="gradient-primary text-white border-0 hover:opacity-90"
@@ -176,34 +193,73 @@ export default function GoalsPage() {
         </Button>
       </div>
 
-      {/* Stats */}
+      {/* A→B Category Overview */}
       {totalGoals > 0 && (
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
           className="mb-4 rounded-2xl border border-border/50 bg-card/80 p-4"
         >
-          <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center justify-between mb-3">
             <span className="text-xs text-muted-foreground">
-              Общий прогресс
+              Прогресс по категориям
             </span>
             <span className="text-xs font-medium text-primary">
-              {completedGoals}/{totalGoals}
+              {completedGoals}/{totalGoals} целей
             </span>
           </div>
-          <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
-            <motion.div
-              className="h-full rounded-full gradient-primary"
-              initial={{ width: 0 }}
-              animate={{
-                width: `${totalGoals > 0 ? (completedGoals / totalGoals) * 100 : 0}%`,
-              }}
-              transition={{ duration: 0.6, ease: "easeOut" }}
-            />
+
+          {/* Category mini-bars */}
+          <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+            {categoryProgress
+              .filter((cp) => cp.total > 0)
+              .map((cp) => (
+                <button
+                  key={cp.category.id}
+                  onClick={() => setFilterCategory(cp.category.id)}
+                  className="flex items-center gap-2 group text-left"
+                >
+                  <div
+                    className="h-2.5 w-2.5 rounded-full shrink-0"
+                    style={{ backgroundColor: cp.category.color || "#666" }}
+                  />
+                  <span className="text-[11px] text-muted-foreground group-hover:text-foreground transition-colors truncate flex-1">
+                    {cp.category.name}
+                  </span>
+                  <div className="h-1 w-10 rounded-full bg-muted overflow-hidden shrink-0">
+                    <div
+                      className="h-full rounded-full transition-all duration-500"
+                      style={{
+                        width: `${Math.max(cp.percent, 5)}%`,
+                        backgroundColor: cp.category.color || "#666",
+                      }}
+                    />
+                  </div>
+                  <span className="text-[10px] text-muted-foreground/60 w-6 text-right">
+                    {cp.percent}%
+                  </span>
+                </button>
+              ))}
           </div>
-          <div className="mt-2 flex items-center gap-4 text-xs text-muted-foreground">
-            <span>{activeGoals} активных</span>
-            <span>{completedGoals} выполненных</span>
+
+          {/* Overall progress bar */}
+          <div className="mt-3 pt-3 border-t border-border/30">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[10px] text-muted-foreground">Общий</span>
+              <span className="text-[10px] font-medium text-primary">
+                {totalGoals > 0 ? Math.round((completedGoals / totalGoals) * 100) : 0}%
+              </span>
+            </div>
+            <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+              <motion.div
+                className="h-full rounded-full gradient-primary"
+                initial={{ width: 0 }}
+                animate={{
+                  width: `${totalGoals > 0 ? (completedGoals / totalGoals) * 100 : 0}%`,
+                }}
+                transition={{ duration: 0.6, ease: "easeOut" }}
+              />
+            </div>
           </div>
         </motion.div>
       )}
@@ -264,8 +320,11 @@ export default function GoalsPage() {
           <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10">
             <Target className="h-8 w-8 text-primary" />
           </div>
-          <p className="text-muted-foreground text-sm">
-            Пока нет целей. Создай первую!
+          <p className="text-muted-foreground text-sm mb-1">
+            Определи точку Б — куда ты идёшь
+          </p>
+          <p className="text-muted-foreground/60 text-xs max-w-[240px]">
+            Создай цель на десятилетие, год или месяц. Потом разбей на подцели — до ежедневных задач.
           </p>
         </motion.div>
       ) : (

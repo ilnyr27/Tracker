@@ -1,437 +1,516 @@
 "use client";
 
-import { useEffect, useState, useCallback, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { format, addDays, subDays, isToday as checkIsToday, parseISO } from "date-fns";
-import { ru } from "date-fns/locale";
 import {
-  ChevronLeft,
-  ChevronRight,
-  CalendarDays,
   Plus,
   Check,
-  Trash2,
+  Flame,
+  Target,
+  Star,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { motion, AnimatePresence } from "motion/react";
-import type { Category, Task } from "@/lib/supabase/types";
+import type { Goal, Category, Task } from "@/lib/supabase/types";
 
-const CATEGORY_ICONS: Record<string, string> = {
+// Category icon mapping → emoji fallback
+const CATEGORY_EMOJI: Record<string, string> = {
   "heart-pulse": "\u2764\ufe0f",
   home: "\ud83c\udfe0",
-  "trending-up": "\ud83d\udcc8",
+  "trending-up": "\ud83d\udcb0",
   briefcase: "\ud83d\udcbc",
   users: "\ud83d\udc68\u200d\ud83d\udc69\u200d\ud83d\udc67",
-  "message-circle": "\ud83d\udcac",
-  smile: "\ud83d\ude0a",
-  "graduation-cap": "\ud83c\udf93",
-  moon: "\ud83c\udf19",
+  "message-circle": "\ud83d\udc65",
+  smile: "\ud83c\udf34",
+  "graduation-cap": "\ud83d\udcda",
+  moon: "\ud83c\udd4c",
   palette: "\ud83c\udfa8",
+};
+
+// Short descriptions for categories
+const CATEGORY_DESC: Record<string, string> = {
+  "heart-pulse": "Физическое и ментальное",
+  home: "Уют и порядок",
+  "trending-up": "Деньги и инвестиции",
+  briefcase: "Профессиональное развитие",
+  users: "Отношения и поддержка",
+  "message-circle": "Общение и окружение",
+  smile: "Восстановление и баланс",
+  "graduation-cap": "Знания и навыки",
+  moon: "Духовный рост и практика",
+  palette: "Творческая реализация",
 };
 
 const container = {
   hidden: { opacity: 0 },
-  show: {
-    opacity: 1,
-    transition: { staggerChildren: 0.05 },
-  },
+  show: { opacity: 1, transition: { staggerChildren: 0.06 } },
 };
 
 const item = {
-  hidden: { opacity: 0, y: 12 },
-  show: { opacity: 1, y: 0 },
+  hidden: { opacity: 0, scale: 0.9 },
+  show: { opacity: 1, scale: 1 },
 };
 
-export default function TodayPage() {
-  return (
-    <Suspense fallback={
-      <div className="mx-auto max-w-2xl p-4">
-        <div className="space-y-3">
-          {[...Array(5)].map((_, i) => (
-            <div key={i} className="h-20 rounded-2xl bg-card animate-pulse" />
-          ))}
-        </div>
-      </div>
-    }>
-      <TodayContent />
-    </Suspense>
-  );
-}
-
-function TodayContent() {
-  const searchParams = useSearchParams();
-  const dateParam = searchParams.get("date");
-  const [currentDate, setCurrentDate] = useState(() =>
-    dateParam ? parseISO(dateParam) : new Date()
-  );
+export default function MainPage() {
   const [categories, setCategories] = useState<Category[]>([]);
+  const [goals, setGoals] = useState<Goal[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
-
-  const dateStr = format(currentDate, "yyyy-MM-dd");
-  const isToday = checkIsToday(currentDate);
+  const [goalDialogOpen, setGoalDialogOpen] = useState(false);
+  const [goalDialogCatId, setGoalDialogCatId] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     setLoading(true);
     const supabase = createClient();
 
-    const [catRes, taskRes] = await Promise.all([
+    const [catRes, goalsRes, tasksRes] = await Promise.all([
       supabase
         .from("categories")
         .select("*")
         .eq("is_active", true)
         .order("sort_order"),
       supabase
+        .from("goals")
+        .select("*")
+        .eq("status", "active")
+        .order("sort_order"),
+      supabase
         .from("tasks")
         .select("*")
-        .eq("scheduled_date", dateStr)
-        .order("sort_order"),
+        .not("goal_id", "is", null),
     ]);
 
     if (catRes.data) setCategories(catRes.data);
-    if (taskRes.data) setTasks(taskRes.data);
+    if (goalsRes.data) setGoals(goalsRes.data);
+    if (tasksRes.data) setTasks(tasksRes.data);
     setLoading(false);
-  }, [dateStr]);
+  }, []);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
 
-  async function toggleTask(task: Task) {
-    const supabase = createClient();
-    const newDone = !task.is_done;
-
-    setTasks((prev) =>
-      prev.map((t) =>
-        t.id === task.id
-          ? {
-              ...t,
-              is_done: newDone,
-              completed_at: newDone ? new Date().toISOString() : null,
-            }
-          : t
-      )
-    );
-
-    await supabase
-      .from("tasks")
-      .update({
-        is_done: newDone,
-        completed_at: newDone ? new Date().toISOString() : null,
-      })
-      .eq("id", task.id);
+  // Build goal progress map: goal_id -> { done, total }
+  const goalProgress = new Map<string, { done: number; total: number }>();
+  for (const task of tasks) {
+    if (!task.goal_id) continue;
+    const existing = goalProgress.get(task.goal_id) || { done: 0, total: 0 };
+    existing.total++;
+    if (task.is_done) existing.done++;
+    goalProgress.set(task.goal_id, existing);
   }
 
-  async function addTask(categoryId: string, title: string) {
-    const supabase = createClient();
-    const { data: userData } = await supabase.auth.getUser();
-    if (!userData.user) return;
-
-    const { data } = await supabase
-      .from("tasks")
-      .insert({
-        user_id: userData.user.id,
-        category_id: categoryId,
-        title,
-        scheduled_date: dateStr,
-        sort_order: tasks.filter((t) => t.category_id === categoryId).length,
-      })
-      .select()
-      .single();
-
-    if (data) setTasks((prev) => [...prev, data]);
+  // Group goals by category
+  const goalsByCategory = new Map<string, Goal[]>();
+  for (const goal of goals) {
+    const catId = goal.category_id || "none";
+    if (!goalsByCategory.has(catId)) goalsByCategory.set(catId, []);
+    goalsByCategory.get(catId)!.push(goal);
   }
 
-  async function deleteTask(taskId: string) {
-    const supabase = createClient();
-    setTasks((prev) => prev.filter((t) => t.id !== taskId));
-    await supabase.from("tasks").delete().eq("id", taskId);
+  // Calculate category progress %
+  function getCategoryPercent(catId: string): number {
+    const catGoals = goalsByCategory.get(catId) || [];
+    if (catGoals.length === 0) return 0;
+    let totalDone = 0;
+    let totalTarget = 0;
+    for (const g of catGoals) {
+      if (g.tracking_type === "habit") {
+        const prog = goalProgress.get(g.id);
+        totalDone += prog?.done || 0;
+        totalTarget += g.target_days || 0;
+      } else {
+        totalTarget++;
+        if (g.status === "completed") totalDone++;
+      }
+    }
+    return totalTarget > 0 ? Math.round((totalDone / totalTarget) * 100) : 0;
   }
 
-  // Overall progress
-  const totalTasks = tasks.length;
-  const doneTasks = tasks.filter((t) => t.is_done).length;
-  const progress = totalTasks > 0 ? (doneTasks / totalTasks) * 100 : 0;
+  function openAddGoal(categoryId: string) {
+    setGoalDialogCatId(categoryId);
+    setGoalDialogOpen(true);
+  }
 
   return (
     <div className="mx-auto max-w-2xl p-4 pb-24 md:pb-4">
-      {/* Date Navigation */}
-      <div className="flex items-center justify-between mb-2">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-1">
+        <div>
+          <h1 className="text-2xl font-bold gradient-text">Life OS</h1>
+          <p className="text-xs text-muted-foreground">
+            Твоя жизнь. Твои правила.
+          </p>
+        </div>
         <Button
           variant="ghost"
           size="icon"
-          className="h-10 w-10 rounded-xl"
-          onClick={() => setCurrentDate(subDays(currentDate, 1))}
+          className="h-9 w-9 rounded-xl"
+          onClick={() => {
+            setGoalDialogCatId(null);
+            setGoalDialogOpen(true);
+          }}
         >
-          <ChevronLeft className="h-5 w-5" />
+          <Plus className="h-5 w-5" />
         </Button>
-
-        <motion.div
-          key={dateStr}
-          initial={{ opacity: 0, y: -5 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="text-center"
-        >
-          <h1 className="text-xl font-bold">
-            {isToday ? (
-              <span className="gradient-text">Сегодня</span>
-            ) : (
-              format(currentDate, "d MMMM", { locale: ru })
-            )}
-          </h1>
-          <p className="text-xs text-muted-foreground">
-            {format(currentDate, "EEEE, d MMMM yyyy", { locale: ru })}
-          </p>
-        </motion.div>
-
-        <div className="flex items-center gap-1">
-          {!isToday && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-10 w-10 rounded-xl"
-              onClick={() => setCurrentDate(new Date())}
-              title="Сегодня"
-            >
-              <CalendarDays className="h-4 w-4" />
-            </Button>
-          )}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-10 w-10 rounded-xl"
-            onClick={() => setCurrentDate(addDays(currentDate, 1))}
-          >
-            <ChevronRight className="h-5 w-5" />
-          </Button>
-        </div>
       </div>
 
-      {/* Overall Progress */}
-      {totalTasks > 0 && (
-        <motion.div
-          initial={{ opacity: 0, scaleX: 0 }}
-          animate={{ opacity: 1, scaleX: 1 }}
-          className="mb-6"
-        >
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="text-xs text-muted-foreground">
-              Прогресс дня
-            </span>
-            <span className="text-xs font-medium text-primary">
-              {doneTasks}/{totalTasks}
-            </span>
-          </div>
-          <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
-            <motion.div
-              className="h-full rounded-full gradient-primary"
-              initial={{ width: 0 }}
-              animate={{ width: `${progress}%` }}
-              transition={{ duration: 0.6, ease: "easeOut" }}
-            />
-          </div>
-        </motion.div>
-      )}
-
-      {/* Category Cards */}
+      {/* Grid of category cards */}
       {loading ? (
-        <div className="space-y-3">
-          {[...Array(5)].map((_, i) => (
-            <div
-              key={i}
-              className="h-20 rounded-2xl bg-card animate-pulse"
-            />
+        <div className="grid grid-cols-3 gap-3 mt-4">
+          {[...Array(9)].map((_, i) => (
+            <div key={i} className="aspect-square rounded-2xl bg-card animate-pulse" />
           ))}
         </div>
       ) : (
         <AnimatePresence mode="wait">
           <motion.div
-            key={dateStr}
             variants={container}
             initial="hidden"
             animate="show"
-            className="space-y-3"
+            className="grid grid-cols-3 gap-3 mt-4"
           >
             {categories.map((cat) => {
-              const catTasks = tasks.filter(
-                (t) => t.category_id === cat.id
-              );
-              const doneCount = catTasks.filter((t) => t.is_done).length;
+              const catGoals = goalsByCategory.get(cat.id) || [];
+              const percent = getCategoryPercent(cat.id);
+              const emoji = CATEGORY_EMOJI[cat.icon || ""] || "\ud83d\udccc";
+              const desc = CATEGORY_DESC[cat.icon || ""] || "";
 
               return (
-                <motion.div key={cat.id} variants={item}>
-                  <CategoryCard
-                    category={cat}
-                    tasks={catTasks}
-                    doneCount={doneCount}
-                    onToggleTask={toggleTask}
-                    onAddTask={(title) => addTask(cat.id, title)}
-                    onDeleteTask={deleteTask}
-                  />
-                </motion.div>
+                <motion.button
+                  key={cat.id}
+                  variants={item}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => openAddGoal(cat.id)}
+                  className="relative aspect-square rounded-2xl border border-border/30 bg-card p-3 flex flex-col items-center justify-center text-center gap-1.5 hover:shadow-md transition-shadow group"
+                >
+                  {/* Icon */}
+                  <div
+                    className="flex h-11 w-11 items-center justify-center rounded-xl text-xl"
+                    style={{ backgroundColor: `${cat.color}15` }}
+                  >
+                    {emoji}
+                  </div>
+
+                  {/* Name */}
+                  <span className="text-xs font-semibold leading-tight line-clamp-1">
+                    {cat.name}
+                  </span>
+
+                  {/* Description */}
+                  <span className="text-[9px] text-muted-foreground/60 leading-tight line-clamp-2 px-1">
+                    {desc}
+                  </span>
+
+                  {/* Progress stars */}
+                  <div className="flex gap-0.5 mt-0.5">
+                    {[...Array(5)].map((_, i) => {
+                      const filled = Math.round(percent / 20);
+                      return (
+                        <Star
+                          key={i}
+                          className="h-2.5 w-2.5"
+                          fill={i < filled ? (cat.color || "#f59e0b") : "transparent"}
+                          stroke={i < filled ? (cat.color || "#f59e0b") : "oklch(0.6 0 0)"}
+                          strokeWidth={1.5}
+                        />
+                      );
+                    })}
+                  </div>
+
+                  {/* Percentage badge */}
+                  <span
+                    className="absolute top-2 right-2 text-[10px] font-bold"
+                    style={{ color: cat.color || "#6366f1" }}
+                  >
+                    {percent}%
+                  </span>
+                </motion.button>
               );
             })}
+
+            {/* Add category placeholder */}
+            <motion.div
+              variants={item}
+              className="aspect-square rounded-2xl border-2 border-dashed border-border/30 flex flex-col items-center justify-center gap-1 text-muted-foreground/30 hover:border-border/60 hover:text-muted-foreground/50 transition-colors cursor-pointer"
+            >
+              <Plus className="h-6 w-6" />
+              <span className="text-[10px]">Добавить</span>
+              <span className="text-[10px]">категорию</span>
+            </motion.div>
           </motion.div>
         </AnimatePresence>
       )}
+
+      {/* Bottom motivational text */}
+      {!loading && (
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.5 }}
+          className="text-center text-xs text-muted-foreground/40 mt-6 italic"
+        >
+          Баланс — это прогресс. Работай над собой каждый день.
+        </motion.p>
+      )}
+
+      {/* Category detail sheet — goals list */}
+      <CategoryGoalsDialog
+        open={goalDialogOpen}
+        onOpenChange={setGoalDialogOpen}
+        categoryId={goalDialogCatId}
+        categories={categories}
+        goals={goals}
+        goalProgress={goalProgress}
+        goalsByCategory={goalsByCategory}
+        onDataChanged={loadData}
+      />
     </div>
   );
 }
 
-function CategoryCard({
-  category,
-  tasks,
-  doneCount,
-  onToggleTask,
-  onAddTask,
-  onDeleteTask,
-}: {
-  category: Category;
-  tasks: Task[];
-  doneCount: number;
-  onToggleTask: (task: Task) => void;
-  onAddTask: (title: string) => void;
-  onDeleteTask: (id: string) => void;
-}) {
-  const [adding, setAdding] = useState(false);
-  const [newTitle, setNewTitle] = useState("");
+// --- Category Goals Dialog (tap on a card → see goals + add) ---
 
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (newTitle.trim()) {
-      onAddTask(newTitle.trim());
-      setNewTitle("");
-      setAdding(false);
+function CategoryGoalsDialog({
+  open,
+  onOpenChange,
+  categoryId,
+  categories,
+  goals,
+  goalProgress,
+  goalsByCategory,
+  onDataChanged,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  categoryId: string | null;
+  categories: Category[];
+  goals: Goal[];
+  goalProgress: Map<string, { done: number; total: number }>;
+  goalsByCategory: Map<string, Goal[]>;
+  onDataChanged: () => void;
+}) {
+  const [addMode, setAddMode] = useState(false);
+  const [title, setTitle] = useState("");
+  const [trackingType, setTrackingType] = useState<"habit" | "milestone">("habit");
+  const [targetDays, setTargetDays] = useState("30");
+  const [saving, setSaving] = useState(false);
+
+  const cat = categories.find((c) => c.id === categoryId);
+  const catGoals = categoryId ? (goalsByCategory.get(categoryId) || []) : [];
+
+  useEffect(() => {
+    if (open) {
+      setAddMode(false);
+      setTitle("");
+      setTrackingType("habit");
+      setTargetDays("30");
     }
+  }, [open]);
+
+  async function handleAddGoal(e: React.FormEvent) {
+    e.preventDefault();
+    if (!title.trim() || !categoryId) return;
+    setSaving(true);
+
+    const supabase = createClient();
+    const { data: userData } = await supabase.auth.getUser();
+    if (!userData.user) return;
+
+    await supabase.from("goals").insert({
+      user_id: userData.user.id,
+      category_id: categoryId,
+      title: title.trim(),
+      tracking_type: trackingType,
+      target_days: trackingType === "habit" ? parseInt(targetDays) || 30 : null,
+      level: "month",
+      sort_order: 0,
+    });
+
+    setSaving(false);
+    setAddMode(false);
+    setTitle("");
+    onDataChanged();
   }
 
-  const icon = CATEGORY_ICONS[category.icon || ""] || "\ud83d\udccc";
-  const catProgress =
-    tasks.length > 0 ? (doneCount / tasks.length) * 100 : 0;
+  async function toggleMilestone(goal: Goal) {
+    const supabase = createClient();
+    const newStatus = goal.status === "completed" ? "active" : "completed";
+    await supabase
+      .from("goals")
+      .update({
+        status: newStatus,
+        completed_at: newStatus === "completed" ? new Date().toISOString() : null,
+      })
+      .eq("id", goal.id);
+    onDataChanged();
+  }
 
   return (
-    <div className="group relative overflow-hidden rounded-2xl border border-border/50 bg-card/80 backdrop-blur-sm transition-colors hover:bg-card">
-      {/* Color accent bar */}
-      <div
-        className="absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl"
-        style={{ backgroundColor: category.color || "#666" }}
-      />
-
-      <div className="pl-4 pr-3 py-3">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-1">
-          <div className="flex items-center gap-2">
-            <span className="text-base">{icon}</span>
-            <span className="text-sm font-medium">{category.name}</span>
-          </div>
-          {tasks.length > 0 && (
-            <div className="flex items-center gap-2">
-              <span
-                className="text-xs font-medium"
-                style={{ color: category.color || "#888" }}
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md bg-card border-border/50">
+        <DialogHeader>
+          <DialogTitle className="text-base flex items-center gap-2">
+            {cat && (
+              <div
+                className="h-6 w-6 rounded-lg flex items-center justify-center text-sm"
+                style={{ backgroundColor: `${cat.color}15` }}
               >
-                {doneCount}/{tasks.length}
-              </span>
-              {/* Mini progress */}
-              <div className="h-1 w-10 rounded-full bg-muted overflow-hidden">
-                <div
-                  className="h-full rounded-full transition-all duration-500"
-                  style={{
-                    width: `${catProgress}%`,
-                    backgroundColor: category.color || "#666",
-                  }}
-                />
+                {CATEGORY_EMOJI[cat.icon || ""] || "\ud83d\udccc"}
               </div>
-            </div>
+            )}
+            <span style={{ color: cat?.color || undefined }}>{cat?.name || "Цели"}</span>
+          </DialogTitle>
+        </DialogHeader>
+
+        {/* Goals list */}
+        <div className="space-y-2 max-h-[40vh] overflow-y-auto">
+          {catGoals.length === 0 && !addMode && (
+            <p className="text-sm text-muted-foreground/40 text-center py-4">
+              Нет целей. Добавьте первую!
+            </p>
           )}
+          {catGoals.map((goal) => {
+            const isHabit = goal.tracking_type === "habit";
+            const prog = goalProgress.get(goal.id);
+            const done = prog?.done || 0;
+            const target = isHabit ? (goal.target_days || 0) : 0;
+            const percent = target > 0 ? Math.min(Math.round((done / target) * 100), 100) : 0;
+
+            return (
+              <div key={goal.id} className="rounded-xl border border-border/30 p-3">
+                {isHabit ? (
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-sm font-medium">{goal.title}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {done}/{target}{" "}
+                        <span className="font-semibold" style={{ color: cat?.color || "#6366f1" }}>
+                          {percent}%
+                        </span>
+                      </span>
+                    </div>
+                    <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+                      <motion.div
+                        className="h-full rounded-full"
+                        style={{ backgroundColor: cat?.color || "#6366f1" }}
+                        initial={{ width: 0 }}
+                        animate={{ width: `${percent}%` }}
+                        transition={{ duration: 0.6 }}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => toggleMilestone(goal)}
+                    className="flex items-center gap-2 w-full text-left"
+                  >
+                    <div
+                      className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2 transition-all"
+                      style={{
+                        borderColor: goal.status === "completed" ? (cat?.color || "#22c55e") : "oklch(0.5 0 0)",
+                        backgroundColor: goal.status === "completed" ? (cat?.color || "#22c55e") : "transparent",
+                      }}
+                    >
+                      {goal.status === "completed" && <Check className="h-3 w-3 text-white" />}
+                    </div>
+                    <span className={`text-sm ${goal.status === "completed" ? "line-through text-muted-foreground/50" : ""}`}>
+                      {goal.title}
+                    </span>
+                  </button>
+                )}
+              </div>
+            );
+          })}
         </div>
 
-        {/* Tasks */}
-        {tasks.length > 0 && (
-          <div className="space-y-0.5 mt-2">
-            <AnimatePresence>
-              {tasks.map((task) => (
-                <motion.div
-                  key={task.id}
-                  layout
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: "auto" }}
-                  exit={{ opacity: 0, height: 0, x: -50 }}
-                  className="flex items-center gap-2.5 rounded-xl px-2 py-1.5 group/task hover:bg-accent/50 transition-colors"
-                >
+        {/* Add goal form */}
+        {addMode ? (
+          <form onSubmit={handleAddGoal} className="space-y-3 pt-2 border-t border-border/30">
+            <Input
+              placeholder="Название цели"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              autoFocus
+              className="bg-input/50 border-border/50"
+            />
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setTrackingType("habit")}
+                className={`flex-1 py-2 rounded-xl text-xs border transition-all ${
+                  trackingType === "habit"
+                    ? "border-primary/50 bg-primary/10 text-primary font-medium"
+                    : "border-border/30 text-muted-foreground"
+                }`}
+              >
+                <Flame className="h-3.5 w-3.5 mx-auto mb-0.5" />
+                Привычка
+              </button>
+              <button
+                type="button"
+                onClick={() => setTrackingType("milestone")}
+                className={`flex-1 py-2 rounded-xl text-xs border transition-all ${
+                  trackingType === "milestone"
+                    ? "border-primary/50 bg-primary/10 text-primary font-medium"
+                    : "border-border/30 text-muted-foreground"
+                }`}
+              >
+                <Target className="h-3.5 w-3.5 mx-auto mb-0.5" />
+                Веха
+              </button>
+            </div>
+            {trackingType === "habit" && (
+              <div className="flex gap-1.5">
+                {["7", "14", "30", "60", "90"].map((d) => (
                   <button
-                    onClick={() => onToggleTask(task)}
-                    className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2 transition-all duration-200"
-                    style={{
-                      borderColor: task.is_done
-                        ? category.color || "#666"
-                        : "oklch(0.4 0 0)",
-                      backgroundColor: task.is_done
-                        ? category.color || "#666"
-                        : "transparent",
-                    }}
-                  >
-                    {task.is_done && (
-                      <motion.div
-                        initial={{ scale: 0 }}
-                        animate={{ scale: 1 }}
-                        transition={{ type: "spring", stiffness: 500, damping: 20 }}
-                      >
-                        <Check className="h-3 w-3 text-white" />
-                      </motion.div>
-                    )}
-                  </button>
-                  <span
-                    className={`flex-1 text-sm transition-all duration-200 ${
-                      task.is_done
-                        ? "line-through text-muted-foreground/60"
-                        : "text-foreground"
+                    key={d}
+                    type="button"
+                    onClick={() => setTargetDays(d)}
+                    className={`flex-1 py-1.5 text-xs rounded-lg border transition-all ${
+                      targetDays === d
+                        ? "border-primary/50 bg-primary/10 text-primary font-medium"
+                        : "border-border/30 text-muted-foreground"
                     }`}
                   >
-                    {task.title}
-                  </span>
-                  <button
-                    onClick={() => onDeleteTask(task.id)}
-                    className="opacity-0 group-hover/task:opacity-100 transition-opacity p-1 rounded-md hover:bg-destructive/10"
-                  >
-                    <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
+                    {d}д
                   </button>
-                </motion.div>
-              ))}
-            </AnimatePresence>
-          </div>
+                ))}
+              </div>
+            )}
+            <div className="flex gap-2">
+              <Button type="button" variant="ghost" className="flex-1" onClick={() => setAddMode(false)}>
+                Отмена
+              </Button>
+              <Button
+                type="submit"
+                disabled={saving || !title.trim()}
+                className="flex-1 gradient-primary text-white border-0"
+              >
+                {saving ? "..." : "Создать"}
+              </Button>
+            </div>
+          </form>
+        ) : (
+          <Button
+            variant="outline"
+            className="w-full rounded-xl border-dashed"
+            onClick={() => setAddMode(true)}
+          >
+            <Plus className="h-4 w-4 mr-1" />
+            Добавить цель
+          </Button>
         )}
-
-        {/* Add task */}
-        <div className="mt-1.5">
-          {adding ? (
-            <form onSubmit={handleSubmit} className="flex items-center gap-2 px-2">
-              <input
-                autoFocus
-                value={newTitle}
-                onChange={(e) => setNewTitle(e.target.value)}
-                onBlur={() => {
-                  if (!newTitle.trim()) setAdding(false);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Escape") setAdding(false);
-                }}
-                placeholder="Новая задача..."
-                className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground/40 py-1"
-              />
-            </form>
-          ) : (
-            <button
-              onClick={() => setAdding(true)}
-              className="flex items-center gap-1.5 px-2 py-1 text-xs text-muted-foreground/60 hover:text-muted-foreground transition-colors rounded-lg"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              <span>Добавить</span>
-            </button>
-          )}
-        </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
+
+const CATEGORY_EMOJI_EXPORT = CATEGORY_EMOJI;
