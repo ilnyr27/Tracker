@@ -429,7 +429,120 @@ function FreeformView({
   );
 }
 
-// --- Table View ---
+// ── Formula engine ──
+function colLetter(index: number): string {
+  let result = "";
+  let n = index;
+  while (n >= 0) {
+    result = String.fromCharCode(65 + (n % 26)) + result;
+    n = Math.floor(n / 26) - 1;
+  }
+  return result;
+}
+
+function parseRef(ref: string): { col: number; row: number } | null {
+  const match = ref.match(/^([A-Z]+)(\d+)$/);
+  if (!match) return null;
+  let col = 0;
+  for (let i = 0; i < match[1].length; i++) {
+    col = col * 26 + (match[1].charCodeAt(i) - 64);
+  }
+  return { col: col - 1, row: parseInt(match[2]) - 1 };
+}
+
+function parseRange(range: string): { col: number; row: number }[] | null {
+  const parts = range.split(":");
+  if (parts.length !== 2) return null;
+  const start = parseRef(parts[0]);
+  const end = parseRef(parts[1]);
+  if (!start || !end) return null;
+  const refs: { col: number; row: number }[] = [];
+  for (let r = start.row; r <= end.row; r++) {
+    for (let c = start.col; c <= end.col; c++) {
+      refs.push({ col: c, row: r });
+    }
+  }
+  return refs;
+}
+
+function evaluateFormula(
+  formula: string,
+  getCellValue: (col: number, row: number) => string
+): string {
+  try {
+    const expr = formula.slice(1).trim().toUpperCase();
+
+    // SUM(A1:A5)
+    const sumMatch = expr.match(/^SUM\(([A-Z]+\d+:[A-Z]+\d+)\)$/);
+    if (sumMatch) {
+      const refs = parseRange(sumMatch[1]);
+      if (!refs) return "#REF!";
+      const sum = refs.reduce((acc, r) => {
+        const v = parseFloat(getCellValue(r.col, r.row));
+        return acc + (isNaN(v) ? 0 : v);
+      }, 0);
+      return String(sum);
+    }
+
+    // AVERAGE(A1:A5)
+    const avgMatch = expr.match(/^AVERAGE\(([A-Z]+\d+:[A-Z]+\d+)\)$/);
+    if (avgMatch) {
+      const refs = parseRange(avgMatch[1]);
+      if (!refs) return "#REF!";
+      const vals = refs.map((r) => parseFloat(getCellValue(r.col, r.row))).filter((v) => !isNaN(v));
+      return vals.length > 0 ? String(Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 100) / 100) : "0";
+    }
+
+    // MIN(A1:A5)
+    const minMatch = expr.match(/^MIN\(([A-Z]+\d+:[A-Z]+\d+)\)$/);
+    if (minMatch) {
+      const refs = parseRange(minMatch[1]);
+      if (!refs) return "#REF!";
+      const vals = refs.map((r) => parseFloat(getCellValue(r.col, r.row))).filter((v) => !isNaN(v));
+      return vals.length > 0 ? String(Math.min(...vals)) : "0";
+    }
+
+    // MAX(A1:A5)
+    const maxMatch = expr.match(/^MAX\(([A-Z]+\d+:[A-Z]+\d+)\)$/);
+    if (maxMatch) {
+      const refs = parseRange(maxMatch[1]);
+      if (!refs) return "#REF!";
+      const vals = refs.map((r) => parseFloat(getCellValue(r.col, r.row))).filter((v) => !isNaN(v));
+      return vals.length > 0 ? String(Math.max(...vals)) : "0";
+    }
+
+    // COUNT(A1:A5)
+    const countMatch = expr.match(/^COUNT\(([A-Z]+\d+:[A-Z]+\d+)\)$/);
+    if (countMatch) {
+      const refs = parseRange(countMatch[1]);
+      if (!refs) return "#REF!";
+      const vals = refs.map((r) => parseFloat(getCellValue(r.col, r.row))).filter((v) => !isNaN(v));
+      return String(vals.length);
+    }
+
+    // Simple arithmetic: =A1+B1, =A1*2, =A1-A2, =A1/A2
+    const arithmeticExpr = expr.replace(/([A-Z]+\d+)/g, (match) => {
+      const ref = parseRef(match);
+      if (!ref) return "0";
+      const v = parseFloat(getCellValue(ref.col, ref.row));
+      return isNaN(v) ? "0" : String(v);
+    });
+
+    // Only allow safe characters: digits, +, -, *, /, ., (, ), spaces
+    if (/^[\d+\-*/.()\s]+$/.test(arithmeticExpr)) {
+      const result = new Function(`return (${arithmeticExpr})`)();
+      if (typeof result === "number" && isFinite(result)) {
+        return String(Math.round(result * 100) / 100);
+      }
+    }
+
+    return "#ERR!";
+  } catch {
+    return "#ERR!";
+  }
+}
+
+// --- Table View (Google Sheets-like) ---
 function TableView({
   entries,
   schema,
@@ -443,23 +556,72 @@ function TableView({
   onUpdate: (id: string, data: Record<string, unknown>) => void;
   onDelete: (id: string) => void;
 }) {
-  // Derive columns from existing entries or schema
-  const columns = schema?.columns
-    ? (schema.columns as string[])
+  const colCount = schema?.columns
+    ? (schema.columns as string[]).length
     : entries.length > 0
-      ? Object.keys(entries[0].data).filter((k) => k !== "_id")
-      : ["Название", "Значение"];
+      ? Object.keys(entries[0].data).filter((k) => k !== "_id").length
+      : 3;
+
+  const cols = Array.from({ length: colCount }, (_, i) => colLetter(i));
+
+  const [selectedCell, setSelectedCell] = useState<string | null>(null);
+  const [editingCell, setEditingCell] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState("");
+
+  // Get raw cell value (formula or value)
+  function getRawValue(entry: TabEntry, col: string): string {
+    return (entry.data[col] as string) || "";
+  }
+
+  // Get computed cell value (evaluate formulas)
+  function getComputedValue(entryIdx: number, colIdx: number): string {
+    if (entryIdx < 0 || entryIdx >= entries.length) return "";
+    const col = cols[colIdx];
+    if (!col) return "";
+    const raw = getRawValue(entries[entryIdx], col);
+    if (raw.startsWith("=")) {
+      return evaluateFormula(raw, (c, r) => getComputedValue(r, c));
+    }
+    return raw;
+  }
+
+  function getDisplayValue(entry: TabEntry, col: string, rowIdx: number): string {
+    const raw = getRawValue(entry, col);
+    if (raw.startsWith("=")) {
+      const colIdx = cols.indexOf(col);
+      return evaluateFormula(raw, (c, r) => getComputedValue(r, c));
+    }
+    return raw;
+  }
+
+  function startEditing(entryId: string, col: string, raw: string) {
+    const key = `${entryId}-${col}`;
+    setEditingCell(key);
+    setEditValue(raw);
+  }
+
+  function commitEdit(entryId: string, col: string) {
+    const entry = entries.find((e) => e.id === entryId);
+    if (entry) {
+      onUpdate(entryId, { ...entry.data, [col]: editValue });
+    }
+    setEditingCell(null);
+  }
 
   return (
     <div className="rounded-2xl border border-border/50 bg-card/80 overflow-hidden">
       <div className="overflow-x-auto">
-        <table className="w-full text-sm">
+        <table className="w-full text-sm border-collapse">
           <thead>
-            <tr className="border-b border-border/50">
-              {columns.map((col) => (
+            <tr className="border-b border-border/50 bg-muted/30">
+              {/* Row number header */}
+              <th className="w-10 px-2 py-2 text-center text-[10px] font-medium text-muted-foreground/50 border-r border-border/30">
+                #
+              </th>
+              {cols.map((col) => (
                 <th
                   key={col}
-                  className="text-left px-3 py-2 text-xs font-medium text-muted-foreground"
+                  className="px-1 py-2 text-center text-xs font-semibold text-muted-foreground min-w-[100px] border-r border-border/20"
                 >
                   {col}
                 </th>
@@ -468,26 +630,57 @@ function TableView({
             </tr>
           </thead>
           <tbody>
-            {entries.map((entry) => (
+            {entries.map((entry, rowIdx) => (
               <tr
                 key={entry.id}
-                className="group border-b border-border/20 hover:bg-accent/30"
+                className="group border-b border-border/15 hover:bg-accent/20"
               >
-                {columns.map((col) => (
-                  <td key={col} className="px-3 py-1.5">
-                    <input
-                      value={(entry.data[col] as string) || ""}
-                      onChange={(e) =>
-                        onUpdate(entry.id, {
-                          ...entry.data,
-                          [col]: e.target.value,
-                        })
-                      }
-                      className="w-full bg-transparent outline-none text-sm"
-                    />
-                  </td>
-                ))}
-                <td>
+                {/* Row number */}
+                <td className="px-2 py-0 text-center text-[10px] text-muted-foreground/40 font-medium border-r border-border/30 bg-muted/10 select-none">
+                  {rowIdx + 1}
+                </td>
+                {cols.map((col) => {
+                  const cellKey = `${entry.id}-${col}`;
+                  const isEditing = editingCell === cellKey;
+                  const isSelected = selectedCell === cellKey;
+                  const raw = getRawValue(entry, col);
+                  const display = getDisplayValue(entry, col, rowIdx);
+                  const isFormula = raw.startsWith("=");
+
+                  return (
+                    <td
+                      key={col}
+                      className={`px-0 py-0 border-r border-border/15 relative ${
+                        isSelected ? "ring-2 ring-primary/50 ring-inset z-10" : ""
+                      }`}
+                      onClick={() => setSelectedCell(cellKey)}
+                      onDoubleClick={() => startEditing(entry.id, col, raw)}
+                    >
+                      {isEditing ? (
+                        <input
+                          value={editValue}
+                          onChange={(e) => setEditValue(e.target.value)}
+                          onBlur={() => commitEdit(entry.id, col)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") commitEdit(entry.id, col);
+                            if (e.key === "Escape") setEditingCell(null);
+                          }}
+                          autoFocus
+                          className="w-full h-full px-2 py-1.5 bg-white dark:bg-card outline-none text-sm border-0"
+                        />
+                      ) : (
+                        <div
+                          className={`px-2 py-1.5 min-h-[32px] text-sm cursor-cell select-none ${
+                            isFormula ? "text-primary/80" : ""
+                          }`}
+                        >
+                          {display}
+                        </div>
+                      )}
+                    </td>
+                  );
+                })}
+                <td className="px-0">
                   <button
                     onClick={() => onDelete(entry.id)}
                     className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-destructive/10 transition-all"
@@ -500,17 +693,24 @@ function TableView({
           </tbody>
         </table>
       </div>
-      <button
-        onClick={() => {
-          const data: Record<string, unknown> = {};
-          columns.forEach((col) => (data[col] = ""));
-          onAdd(data);
-        }}
-        className="flex items-center gap-1.5 px-4 py-2 text-xs text-muted-foreground/60 hover:text-muted-foreground transition-colors w-full border-t border-border/30"
-      >
-        <Plus className="h-3.5 w-3.5" />
-        Добавить строку
-      </button>
+
+      {/* Add row + formula help */}
+      <div className="flex items-center justify-between border-t border-border/30">
+        <button
+          onClick={() => {
+            const data: Record<string, unknown> = {};
+            cols.forEach((col) => (data[col] = ""));
+            onAdd(data);
+          }}
+          className="flex items-center gap-1.5 px-4 py-2 text-xs text-muted-foreground/60 hover:text-muted-foreground transition-colors"
+        >
+          <Plus className="h-3.5 w-3.5" />
+          Добавить строку
+        </button>
+        <span className="text-[10px] text-muted-foreground/30 px-4">
+          Формулы: =SUM(A1:A5) =AVERAGE =MIN =MAX =COUNT =A1+B1
+        </span>
+      </div>
     </div>
   );
 }

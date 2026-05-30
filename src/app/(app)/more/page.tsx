@@ -9,6 +9,7 @@ import {
   Layers,
   Settings,
   ChevronRight,
+  Camera,
 } from "lucide-react";
 import { motion } from "motion/react";
 
@@ -18,7 +19,7 @@ const menuGroups = [
     items: [
       {
         href: "/goals",
-        label: "Путь А → Б",
+        label: "Канбан",
         description: "Все цели по направлениям",
         icon: Target,
       },
@@ -32,6 +33,12 @@ const menuGroups = [
         label: "Журнал",
         description: "Мысли и заметки",
         icon: BookOpen,
+      },
+      {
+        href: "/photos",
+        label: "Фото-дневник",
+        description: "Фото каждого дня",
+        icon: Camera,
       },
     ],
   },
