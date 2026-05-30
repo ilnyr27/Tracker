@@ -420,12 +420,12 @@ export default function MatrixPage() {
 }
 
 // ── Chart types ──
-type ChartType = "bar" | "radar" | "line" | "donut";
+type ChartType = "radar" | "bar" | "histogram" | "donut";
 
 const CHART_TYPES: { id: ChartType; label: string; icon: typeof BarChart3 }[] = [
-  { id: "bar", label: "Столбцы", icon: BarChart3 },
   { id: "radar", label: "Лепестковый", icon: Radar },
-  { id: "line", label: "График", icon: Activity },
+  { id: "bar", label: "Прогресс", icon: BarChart3 },
+  { id: "histogram", label: "Гистограмма", icon: Activity },
   { id: "donut", label: "Кольцевой", icon: PieChart },
 ];
 
@@ -441,7 +441,7 @@ function CategoryCharts({
   tasks: Task[];
   days: Date[];
 }) {
-  const [chartType, setChartType] = useState<ChartType>("bar");
+  const [chartType, setChartType] = useState<ChartType>("radar");
 
   const catStats = useMemo(() => categories.map((cat) => {
     const catGoals = goalsByCategory.get(cat.id) || [];
@@ -501,9 +501,9 @@ function CategoryCharts({
       </div>
 
       {/* Chart content */}
-      {chartType === "bar" && <BarChartView catStats={catStats} />}
       {chartType === "radar" && <RadarChartView catStats={catStats} />}
-      {chartType === "line" && <LineChartView catStats={catStats} days={days} />}
+      {chartType === "bar" && <BarChartView catStats={catStats} />}
+      {chartType === "histogram" && <HistogramChartView catStats={catStats} />}
       {chartType === "donut" && <DonutChartView catStats={catStats} />}
 
       {/* Trend legend */}
@@ -614,45 +614,85 @@ function RadarChartView({ catStats }: { catStats: CatStat[] }) {
   );
 }
 
-// ── Line chart (SVG) ──
-function LineChartView({ catStats, days }: { catStats: CatStat[]; days: Date[] }) {
+// ── Histogram chart (SVG vertical bars per category) ──
+function HistogramChartView({ catStats }: { catStats: CatStat[] }) {
   const width = 320;
-  const height = 160;
+  const height = 200;
   const padX = 30;
   const padY = 20;
+  const padBottom = 40;
   const chartW = width - padX * 2;
-  const chartH = height - padY * 2;
+  const chartH = height - padY - padBottom;
+
+  const n = catStats.length;
+  if (n === 0) return <p className="text-xs text-muted-foreground text-center py-8">Нет данных</p>;
+
+  const barWidth = Math.min(chartW / n - 8, 40);
+  const gap = (chartW - barWidth * n) / (n + 1);
 
   return (
     <div className="flex justify-center overflow-x-auto">
-      <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} className="min-w-[280px]">
-        {/* Y axis lines */}
+      <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} className="min-w-[260px]">
+        {/* Y grid */}
         {[0, 25, 50, 75, 100].map((v) => {
           const y = padY + chartH - (v / 100) * chartH;
           return (
             <g key={v}>
               <line x1={padX} y1={y} x2={padX + chartW} y2={y} stroke="currentColor" strokeOpacity={0.06} />
-              <text x={padX - 4} y={y + 3} textAnchor="end" className="fill-muted-foreground text-[9px]">{v}</text>
+              <text x={padX - 4} y={y + 3} textAnchor="end" className="fill-muted-foreground text-[9px]">{v}%</text>
             </g>
           );
         })}
-        {/* Lines per category */}
-        {catStats.map(({ cat, dailyRates }) => {
-          const validPoints = dailyRates
-            .map((rate, i) => ({ rate, i }))
-            .filter((p) => p.rate >= 0);
-          if (validPoints.length < 2) return null;
-          const pathD = validPoints
-            .map((p, idx) => {
-              const x = padX + (p.i / Math.max(dailyRates.length - 1, 1)) * chartW;
-              const y = padY + chartH - (p.rate / 100) * chartH;
-              return `${idx === 0 ? "M" : "L"} ${x} ${y}`;
-            })
-            .join(" ");
+        {/* Bars */}
+        {catStats.map((s, i) => {
+          const x = padX + gap + i * (barWidth + gap);
+          const barH = (s.percent / 100) * chartH;
+          const y = padY + chartH - barH;
+          const emoji = getEmoji(s.cat);
+
           return (
-            <path key={cat.id} d={pathD} fill="none" stroke={cat.color || "var(--primary)"} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" strokeOpacity={0.8} />
+            <g key={s.cat.id}>
+              <rect
+                x={x}
+                y={y}
+                width={barWidth}
+                height={Math.max(barH, 2)}
+                rx={4}
+                fill={s.cat.color || "var(--primary)"}
+                fillOpacity={0.75}
+              />
+              {/* Value label */}
+              <text
+                x={x + barWidth / 2}
+                y={y - 6}
+                textAnchor="middle"
+                className="fill-foreground text-[10px] font-medium"
+              >
+                {s.percent}%
+              </text>
+              {/* Emoji label */}
+              <text
+                x={x + barWidth / 2}
+                y={padY + chartH + 16}
+                textAnchor="middle"
+                className="text-sm"
+              >
+                {emoji}
+              </text>
+              {/* Trend arrow */}
+              <text
+                x={x + barWidth / 2}
+                y={padY + chartH + 30}
+                textAnchor="middle"
+                className={`text-[10px] ${s.trend > 5 ? "fill-emerald-500" : s.trend < -5 ? "fill-red-400" : "fill-muted-foreground"}`}
+              >
+                {s.trend > 5 ? "↑" : s.trend < -5 ? "↓" : "→"}
+              </text>
+            </g>
           );
         })}
+        {/* X axis */}
+        <line x1={padX} y1={padY + chartH} x2={padX + chartW} y2={padY + chartH} stroke="currentColor" strokeOpacity={0.1} />
       </svg>
     </div>
   );

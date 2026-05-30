@@ -133,8 +133,15 @@ export default function MainPage() {
     for (const g of catGoals) {
       if (g.tracking_type === "habit") {
         const prog = goalProgress.get(g.id);
-        totalDone += prog?.done || 0;
-        totalTarget += g.target_days || 0;
+        const target = g.target_days || 0;
+        if (target >= 99999) {
+          // Infinite habits: count as 1 target, done if any progress
+          totalTarget++;
+          if ((prog?.done || 0) > 0) totalDone++;
+        } else {
+          totalDone += prog?.done || 0;
+          totalTarget += target;
+        }
       } else {
         totalTarget++;
         if (g.status === "completed") totalDone++;
@@ -526,31 +533,70 @@ function CategoryGoalsDialog({
             const prog = goalProgress.get(goal.id);
             const done = prog?.done || 0;
             const target = isHabit ? (goal.target_days || 0) : 0;
-            const percent = target > 0 ? Math.min(Math.round((done / target) * 100), 100) : 0;
+            const isInfinite = target >= 99999;
+            const percent = isInfinite ? 0 : (target > 0 ? Math.min(Math.round((done / target) * 100), 100) : 0);
 
             return (
               <div key={goal.id} className="rounded-xl border border-border/30 p-4">
                 {isHabit ? (
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium">{goal.title}</span>
-                      <span className="text-sm text-muted-foreground tabular-nums">
-                        {done}/{target}{" "}
-                        <span className="font-semibold" style={{ color: cat?.color || "var(--primary)" }}>
-                          {percent}%
+                  isInfinite ? (
+                    /* Infinite habit — show count + flame instead of progress bar */
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium">{goal.title}</span>
+                        <div className="flex items-center gap-1.5">
+                          <Flame className="h-4 w-4 text-orange-500" />
+                          <span className="text-lg font-bold tabular-nums" style={{ color: cat?.color || "var(--primary)" }}>
+                            {done}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            {done === 1 ? "день" : done >= 2 && done <= 4 ? "дня" : "дней"}
+                          </span>
+                        </div>
+                      </div>
+                      {/* Infinite progress — animated dots */}
+                      <div className="flex items-center gap-1 mt-2">
+                        {Array.from({ length: Math.min(done, 30) }).map((_, i) => (
+                          <div
+                            key={i}
+                            className="h-2 w-2 rounded-full"
+                            style={{
+                              backgroundColor: cat?.color || "var(--primary)",
+                              opacity: 0.4 + (i / Math.min(done, 30)) * 0.6,
+                            }}
+                          />
+                        ))}
+                        {done > 30 && (
+                          <span className="text-xs text-muted-foreground ml-1">+{done - 30}</span>
+                        )}
+                        {done === 0 && (
+                          <span className="text-xs text-muted-foreground/40">Начни сегодня!</span>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    /* Regular habit with target */
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium">{goal.title}</span>
+                        <span className="text-sm text-muted-foreground tabular-nums">
+                          {done}/{target}{" "}
+                          <span className="font-semibold" style={{ color: cat?.color || "var(--primary)" }}>
+                            {percent}%
+                          </span>
                         </span>
-                      </span>
+                      </div>
+                      <div className="h-2.5 w-full rounded-full bg-muted overflow-hidden">
+                        <motion.div
+                          className="h-full rounded-full"
+                          style={{ backgroundColor: cat?.color || "var(--primary)" }}
+                          initial={{ width: 0 }}
+                          animate={{ width: `${percent}%` }}
+                          transition={{ duration: 0.6 }}
+                        />
+                      </div>
                     </div>
-                    <div className="h-2.5 w-full rounded-full bg-muted overflow-hidden">
-                      <motion.div
-                        className="h-full rounded-full"
-                        style={{ backgroundColor: cat?.color || "var(--primary)" }}
-                        initial={{ width: 0 }}
-                        animate={{ width: `${percent}%` }}
-                        transition={{ duration: 0.6 }}
-                      />
-                    </div>
-                  </div>
+                  )
                 ) : (
                   <button
                     onClick={() => toggleMilestone(goal)}

@@ -475,7 +475,9 @@ function DraggableCard({
     <div
       ref={setNodeRef}
       style={style}
-      className={`group rounded-xl border bg-card p-4 transition-all ${
+      {...attributes}
+      {...listeners}
+      className={`group rounded-xl border bg-card p-4 transition-all touch-none cursor-grab active:cursor-grabbing ${
         isDragging
           ? "opacity-30 scale-95 shadow-none"
           : "hover:shadow-md"
@@ -487,16 +489,9 @@ function DraggableCard({
             : "border-border/40 hover:border-border/70"
       }`}
     >
-      {/* Drag handle + top row */}
+      {/* Top row */}
       <div className="flex items-center gap-2 mb-2">
-        <button
-          {...attributes}
-          {...listeners}
-          className="touch-none p-1 -ml-1 rounded-lg text-muted-foreground/30 hover:text-muted-foreground/60 hover:bg-accent/50 cursor-grab active:cursor-grabbing transition-colors"
-          aria-label="Перетащить"
-        >
-          <GripVertical className="h-4 w-4" />
-        </button>
+        <GripVertical className="h-4 w-4 text-muted-foreground/20 shrink-0" />
         {cat && (
           <div
             className="h-2 w-2 rounded-full shrink-0"

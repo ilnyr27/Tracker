@@ -21,6 +21,14 @@ export default function SettingsPage() {
   const [notifPermission, setNotifPermission] = useState<string>("default");
   const [notifSupported, setNotifSupported] = useState(false);
 
+  // Granular notification preferences (stored in localStorage)
+  const [notifPrefs, setNotifPrefs] = useState({
+    habits: true,
+    goals: true,
+    journal: true,
+    streak: true,
+  });
+
   useEffect(() => {
     const supported = isNotificationSupported();
     setNotifSupported(supported);
@@ -28,7 +36,18 @@ export default function SettingsPage() {
       setNotifPermission(getNotificationPermission());
       registerServiceWorker();
     }
+    // Load saved preferences
+    try {
+      const saved = localStorage.getItem("notif_prefs");
+      if (saved) setNotifPrefs(JSON.parse(saved));
+    } catch {}
   }, []);
+
+  function updateNotifPref(key: keyof typeof notifPrefs, value: boolean) {
+    const updated = { ...notifPrefs, [key]: value };
+    setNotifPrefs(updated);
+    localStorage.setItem("notif_prefs", JSON.stringify(updated));
+  }
 
   async function handleEnableNotifications() {
     const result = await requestNotificationPermission();
@@ -82,13 +101,42 @@ export default function SettingsPage() {
               <span>Уведомления не поддерживаются в этом браузере</span>
             </div>
           ) : notifPermission === "granted" ? (
-            <div className="flex items-center gap-3">
-              <div className="h-8 w-8 rounded-xl bg-emerald-500/10 flex items-center justify-center">
-                <Bell className="h-4 w-4 text-emerald-500" />
+            <div className="space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="h-8 w-8 rounded-xl bg-emerald-500/10 flex items-center justify-center">
+                  <Bell className="h-4 w-4 text-emerald-500" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-emerald-600 dark:text-emerald-400">Уведомления включены</p>
+                  <p className="text-xs text-muted-foreground">Настрой, какие уведомления получать</p>
+                </div>
               </div>
-              <div>
-                <p className="text-sm font-medium text-emerald-600 dark:text-emerald-400">Уведомления включены</p>
-                <p className="text-xs text-muted-foreground">Ты будешь получать напоминания о задачах</p>
+              <div className="space-y-2 pl-1">
+                {([
+                  { key: "habits" as const, label: "Привычки", desc: "Напоминание выполнить привычку" },
+                  { key: "goals" as const, label: "Цели и дедлайны", desc: "Приближающиеся дедлайны целей" },
+                  { key: "journal" as const, label: "Журнал", desc: "Вечернее напоминание записать мысли" },
+                  { key: "streak" as const, label: "Серии", desc: "Не потеряй серию дней подряд" },
+                ]).map((item) => (
+                  <label key={item.key} className="flex items-center justify-between py-2 cursor-pointer">
+                    <div>
+                      <span className="text-sm">{item.label}</span>
+                      <p className="text-xs text-muted-foreground/60">{item.desc}</p>
+                    </div>
+                    <button
+                      onClick={() => updateNotifPref(item.key, !notifPrefs[item.key])}
+                      className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors ${
+                        notifPrefs[item.key] ? "bg-primary" : "bg-muted"
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${
+                          notifPrefs[item.key] ? "translate-x-5" : "translate-x-0"
+                        }`}
+                      />
+                    </button>
+                  </label>
+                ))}
               </div>
             </div>
           ) : notifPermission === "denied" ? (
