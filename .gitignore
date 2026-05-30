@@ -43,4 +43,10 @@ supabase/.temp/
 *.tsbuildinfo
 next-env.d.ts
 
-.vercel
+# AI configs & MCP (point 21)
+.mcp.json
+.cursor/
+.vscode/
+.idea/
+skills-lock.json
+query_payload.json

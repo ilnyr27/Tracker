@@ -16,17 +16,36 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Life Tracker",
-  description: "Персональный трекер целей и задач",
+  metadataBase: new URL("https://tracker-tau-two-64.vercel.app"),
+  title: {
+    default: "Life OS — трекер жизни",
+    template: "%s | Life OS",
+  },
+  description: "Персональная система трекинга целей по 10 категориям жизни. Привычки, матрица, прогресс.",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Life Tracker",
+    title: "Life OS",
   },
   icons: {
     icon: "/icons/icon.svg",
     apple: "/icons/icon-192.png",
+  },
+  openGraph: {
+    type: "website",
+    locale: "ru_RU",
+    siteName: "Life OS",
+    title: "Life OS — трекер жизни",
+    description: "Твоя жизнь. Твои правила. Модульная система отслеживания целей и привычек.",
+  },
+  twitter: {
+    card: "summary",
+    title: "Life OS — трекер жизни",
+    description: "Модульная система отслеживания целей и привычек по 10 категориям.",
+  },
+  alternates: {
+    canonical: "/",
   },
 };
 

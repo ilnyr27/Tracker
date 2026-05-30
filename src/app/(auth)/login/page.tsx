@@ -6,6 +6,12 @@ import { Input } from "@/components/ui/input";
 import { useState } from "react";
 import { motion } from "motion/react";
 import { Target, ArrowRight, Loader2 } from "lucide-react";
+import { z } from "zod/v4";
+
+const loginSchema = z.object({
+  email: z.email("Введите корректный email"),
+  password: z.string().min(6, "Минимум 6 символов"),
+});
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -16,9 +22,15 @@ export default function LoginPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setLoading(true);
     setError(null);
 
+    const result = loginSchema.safeParse({ email, password });
+    if (!result.success) {
+      setError(result.error.issues[0].message);
+      return;
+    }
+
+    setLoading(true);
     const supabase = createClient();
 
     const { error } =
@@ -86,7 +98,7 @@ export default function LoginPage() {
           >
             <Target className="h-8 w-8 text-white" />
           </motion.div>
-          <h1 className="text-3xl font-bold gradient-text">Life Tracker</h1>
+          <h1 className="text-3xl font-bold gradient-text">Life OS</h1>
           <p className="mt-2 text-sm text-muted-foreground">
             {mode === "login"
               ? "Войди, чтобы продолжить"
