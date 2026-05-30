@@ -155,16 +155,23 @@ export default function GoalsPage() {
     const goalId = active.id as string;
     const overId = over.id as string;
 
-    // Determine target column: either the column itself or the column of the card we're over
+    // Determine target column
     let targetColumn: ColumnId | null = null;
 
-    // Check if we dropped over a column
+    // Dropped on a column directly
     if (COLUMNS.some((c) => c.id === overId)) {
       targetColumn = overId as ColumnId;
-    } else {
-      // Dropped over another card — find its column
-      const overGoal = goals.find((g) => g.id === overId);
-      if (overGoal) targetColumn = overGoal.status;
+    }
+    // Dropped on a card (droppable id = "card-{goalId}")
+    else if (overId.startsWith("card-")) {
+      const data = over.data?.current as { column?: ColumnId } | undefined;
+      if (data?.column) {
+        targetColumn = data.column;
+      } else {
+        const overGoalId = overId.replace("card-", "");
+        const overGoal = goals.find((g) => g.id === overGoalId);
+        if (overGoal) targetColumn = overGoal.status;
+      }
     }
 
     if (targetColumn) {
@@ -399,7 +406,7 @@ function DroppableColumn({
   return (
     <div
       ref={setNodeRef}
-      className={`flex flex-col min-h-0 rounded-2xl transition-all duration-200 ${
+      className={`flex flex-col min-h-[200px] rounded-2xl transition-all duration-200 ${
         isOver
           ? "bg-primary/5 ring-2 ring-primary/30 ring-inset"
           : isDropTarget
@@ -442,7 +449,7 @@ function DroppableColumn({
   );
 }
 
-// ── Draggable Card ──
+// ── Draggable + Droppable Card ──
 function DraggableCard({
   goal,
   catMap,
@@ -458,8 +465,12 @@ function DraggableCard({
   onEdit: (g: Goal) => void;
   onDelete: (id: string) => void;
 }) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+  const { attributes, listeners, setNodeRef: setDragRef, transform, isDragging } = useDraggable({
     id: goal.id,
+  });
+  const { setNodeRef: setDropRef } = useDroppable({
+    id: `card-${goal.id}`,
+    data: { goalId: goal.id, column: currentColumn },
   });
 
   const cat = goal.category_id ? catMap.get(goal.category_id) : null;
@@ -471,13 +482,16 @@ function DraggableCard({
     ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` }
     : undefined;
 
+  // Prevent drag start on interactive elements
+  const stopDrag = (e: React.PointerEvent) => e.stopPropagation();
+
   return (
     <div
-      ref={setNodeRef}
+      ref={(node) => { setDragRef(node); setDropRef(node); }}
       style={style}
       {...attributes}
       {...listeners}
-      className={`group rounded-xl border bg-card p-4 transition-all touch-none cursor-grab active:cursor-grabbing ${
+      className={`group rounded-xl border bg-card p-4 transition-all cursor-grab active:cursor-grabbing ${
         isDragging
           ? "opacity-30 scale-95 shadow-none"
           : "hover:shadow-md"
@@ -513,6 +527,7 @@ function DraggableCard({
         className={`text-sm font-medium leading-snug mb-2 cursor-pointer hover:text-primary transition-colors ${
           isCompleted ? "line-through text-muted-foreground/60" : ""
         }`}
+        onPointerDown={stopDrag}
         onClick={() => onEdit(goal)}
       >
         {goal.title}
@@ -536,7 +551,7 @@ function DraggableCard({
       )}
 
       {/* Actions row */}
-      <div className="flex items-center gap-1 pt-2 border-t border-border/30">
+      <div className="flex items-center gap-1 pt-2 border-t border-border/30" onPointerDown={stopDrag}>
         {moveTargets.map((target) => {
           const TIcon = target.icon;
           return (

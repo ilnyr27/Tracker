@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { BottomNav } from "@/components/layout/bottom-nav";
 import { QuickAddSheet } from "@/components/layout/quick-add-sheet";
+import { Onboarding } from "@/components/layout/onboarding";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [fabOpen, setFabOpen] = useState(false);
@@ -20,6 +21,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <main id="main-content" className="flex-1 pb-20 md:pb-0">{children}</main>
       <BottomNav onFabClick={() => setFabOpen(true)} />
       <QuickAddSheet open={fabOpen} onOpenChange={setFabOpen} />
+      <Onboarding />
     </div>
   );
 }

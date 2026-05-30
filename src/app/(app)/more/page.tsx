@@ -10,6 +10,7 @@ import {
   Settings,
   ChevronRight,
   Camera,
+  HelpCircle,
 } from "lucide-react";
 import { motion } from "motion/react";
 
@@ -62,6 +63,12 @@ const menuGroups = [
   {
     label: "Система",
     items: [
+      {
+        href: "/faq",
+        label: "Вопросы и ответы",
+        description: "Как пользоваться приложением",
+        icon: HelpCircle,
+      },
       {
         href: "/settings",
         label: "Настройки",

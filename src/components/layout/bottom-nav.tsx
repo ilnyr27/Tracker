@@ -21,7 +21,7 @@ const navItems = [
 ];
 
 // "Ещё" page paths — highlight "Ещё" when on any of these
-const morePagePaths = ["/journal", "/goals", "/table", "/sheets", "/settings", "/more"];
+const morePagePaths = ["/journal", "/goals", "/photos", "/faq", "/table", "/sheets", "/settings", "/more"];
 
 type BottomNavProps = {
   onFabClick: () => void;

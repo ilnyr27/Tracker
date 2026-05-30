@@ -8,6 +8,7 @@ import {
   CalendarDays,
   Target,
   BookOpen,
+  Camera,
   Table2,
   Layers,
   Settings,
@@ -46,6 +47,7 @@ const navGroups = [
     label: "Записи",
     items: [
       { href: "/journal", label: "Журнал", icon: BookOpen },
+      { href: "/photos", label: "Фото-дневник", icon: Camera },
     ],
   },
   {
