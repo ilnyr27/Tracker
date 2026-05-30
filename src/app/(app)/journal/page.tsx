@@ -6,7 +6,7 @@ import { format } from "date-fns";
 import { ru } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Send, Trash2, Search, X } from "lucide-react";
+import { Send, Trash2, Search, X, Pencil, Check } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import type { Note } from "@/lib/supabase/types";
 
@@ -16,6 +16,8 @@ export default function JournalPage() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [searching, setSearching] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editContent, setEditContent] = useState("");
 
   useEffect(() => {
     loadNotes();
@@ -60,6 +62,21 @@ export default function JournalPage() {
     const supabase = createClient();
     setNotes((prev) => prev.filter((n) => n.id !== id));
     await supabase.from("notes").delete().eq("id", id);
+  }
+
+  function startEdit(note: Note) {
+    setEditingId(note.id);
+    setEditContent(note.content);
+  }
+
+  async function saveEdit(id: string) {
+    if (!editContent.trim()) return;
+    const supabase = createClient();
+    setNotes((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, content: editContent.trim() } : n))
+    );
+    setEditingId(null);
+    await supabase.from("notes").update({ content: editContent.trim() }).eq("id", id);
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
@@ -162,20 +179,67 @@ export default function JournalPage() {
                       transition={{ delay: i * 0.03 }}
                       className="group relative rounded-2xl border border-border/30 bg-card/60 backdrop-blur-sm px-4 py-3 hover:bg-card/80 transition-colors"
                     >
-                      <p className="text-sm whitespace-pre-wrap leading-relaxed pr-6">
-                        {note.content}
-                      </p>
-                      <div className="flex items-center justify-between mt-2">
-                        <p className="text-[10px] text-muted-foreground/40">
-                          {format(new Date(note.created_at), "HH:mm")}
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => deleteNote(note.id)}
-                        className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 p-1 rounded-lg hover:bg-destructive/10 transition-all"
-                      >
-                        <Trash2 className="h-3.5 w-3.5 text-muted-foreground/40 hover:text-destructive" />
-                      </button>
+                      {editingId === note.id ? (
+                        <div className="space-y-2">
+                          <Textarea
+                            autoFocus
+                            value={editContent}
+                            onChange={(e) => setEditContent(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" && !e.shiftKey) {
+                                e.preventDefault();
+                                saveEdit(note.id);
+                              }
+                              if (e.key === "Escape") setEditingId(null);
+                            }}
+                            className="min-h-[60px] resize-none border-border/50 bg-background/50 text-sm"
+                            rows={2}
+                          />
+                          <div className="flex gap-2 justify-end">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 text-xs"
+                              onClick={() => setEditingId(null)}
+                            >
+                              Отмена
+                            </Button>
+                            <Button
+                              size="sm"
+                              className="h-7 text-xs gradient-primary text-white border-0"
+                              onClick={() => saveEdit(note.id)}
+                            >
+                              <Check className="h-3 w-3 mr-1" />
+                              Сохранить
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <p className="text-sm whitespace-pre-wrap leading-relaxed pr-12">
+                            {note.content}
+                          </p>
+                          <div className="flex items-center justify-between mt-2">
+                            <p className="text-[10px] text-muted-foreground/40">
+                              {format(new Date(note.created_at), "HH:mm")}
+                            </p>
+                          </div>
+                          <div className="absolute top-3 right-3 flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                            <button
+                              onClick={() => startEdit(note)}
+                              className="p-1 rounded-lg hover:bg-primary/10 transition-all"
+                            >
+                              <Pencil className="h-3.5 w-3.5 text-muted-foreground/40 hover:text-primary" />
+                            </button>
+                            <button
+                              onClick={() => deleteNote(note.id)}
+                              className="p-1 rounded-lg hover:bg-destructive/10 transition-all"
+                            >
+                              <Trash2 className="h-3.5 w-3.5 text-muted-foreground/40 hover:text-destructive" />
+                            </button>
+                          </div>
+                        </>
+                      )}
                     </motion.div>
                   ))}
                 </div>

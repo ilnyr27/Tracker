@@ -73,7 +73,6 @@ export default function GoalsPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
   const [filterCategory, setFilterCategory] = useState<string>("all");
-  const [activeTab, setActiveTab] = useState<ColumnId>("deferred");
   const [draggedGoal, setDraggedGoal] = useState<Goal | null>(null);
 
   // DnD sensors: pointer (mouse) + touch (mobile)
@@ -257,36 +256,7 @@ export default function GoalsPage() {
         </div>
       </div>
 
-      {/* Mobile tabs */}
-      <div className="md:hidden flex border-b border-border/50 bg-background">
-        {COLUMNS.map((col) => {
-          const count = goalsByColumn[col.id].length;
-          const isActive = activeTab === col.id;
-          return (
-            <button
-              key={col.id}
-              onClick={() => setActiveTab(col.id)}
-              className={`flex-1 py-3 text-xs font-medium transition-all relative ${
-                isActive ? "text-primary" : "text-muted-foreground"
-              }`}
-            >
-              {col.label}
-              {count > 0 && (
-                <span className={`ml-1 text-[10px] ${isActive ? "text-primary" : "text-muted-foreground/60"}`}>
-                  {count}
-                </span>
-              )}
-              {isActive && (
-                <motion.div
-                  layoutId="kanban-tab"
-                  className="absolute bottom-0 left-2 right-2 h-0.5 rounded-full bg-primary"
-                  transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                />
-              )}
-            </button>
-          );
-        })}
-      </div>
+{/* No mobile tabs — all columns visible via horizontal scroll */}
 
       {/* Kanban board with DnD */}
       {loading ? (
@@ -324,22 +294,24 @@ export default function GoalsPage() {
               ))}
             </div>
 
-            {/* Mobile: active tab only */}
-            <div className="md:hidden p-4 pb-28">
-              {COLUMNS.filter((col) => col.id === activeTab).map((col) => (
-                <DroppableColumn
-                  key={col.id}
-                  column={col}
-                  goals={goalsByColumn[col.id]}
-                  catMap={catMap}
-                  onMove={moveGoal}
-                  onEdit={openEdit}
-                  onDelete={deleteGoal}
-                  isDragActive={!!draggedGoal}
-                  draggedGoalColumn={draggedGoal?.status || null}
-                  mobile
-                />
-              ))}
+            {/* Mobile: horizontal scroll showing all columns */}
+            <div className="md:hidden overflow-x-auto pb-28">
+              <div className="flex gap-4 p-4 min-w-max">
+                {COLUMNS.map((col) => (
+                  <div key={col.id} className="w-[75vw] shrink-0">
+                    <DroppableColumn
+                      column={col}
+                      goals={goalsByColumn[col.id]}
+                      catMap={catMap}
+                      onMove={moveGoal}
+                      onEdit={openEdit}
+                      onDelete={deleteGoal}
+                      isDragActive={!!draggedGoal}
+                      draggedGoalColumn={draggedGoal?.status || null}
+                    />
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
 
@@ -375,7 +347,6 @@ function DroppableColumn({
   onDelete,
   isDragActive,
   draggedGoalColumn,
-  mobile = false,
 }: {
   column: (typeof COLUMNS)[number];
   goals: Goal[];
@@ -385,7 +356,6 @@ function DroppableColumn({
   onDelete: (id: string) => void;
   isDragActive: boolean;
   draggedGoalColumn: ColumnId | null;
-  mobile?: boolean;
 }) {
   const { isOver, setNodeRef } = useDroppable({ id: column.id });
   const Icon = column.icon;
@@ -394,7 +364,7 @@ function DroppableColumn({
   return (
     <div
       ref={setNodeRef}
-      className={`flex flex-col ${mobile ? "" : "min-h-0"} rounded-2xl transition-all duration-200 ${
+      className={`flex flex-col min-h-0 rounded-2xl transition-all duration-200 ${
         isOver
           ? "bg-primary/5 ring-2 ring-primary/30 ring-inset"
           : isDropTarget
@@ -404,7 +374,7 @@ function DroppableColumn({
       style={{ padding: isDropTarget || isOver ? "8px" : undefined }}
     >
       {/* Column header */}
-      {!mobile && (
+      {(
         <div className="flex items-center gap-2 mb-3 px-1">
           <Icon className={`h-4 w-4 ${column.color}`} />
           <span className="text-sm font-semibold">{column.label}</span>
@@ -413,7 +383,7 @@ function DroppableColumn({
       )}
 
       {/* Cards */}
-      <div className={`space-y-3 ${mobile ? "" : "flex-1 overflow-y-auto pr-1"}`}>
+      <div className="space-y-3 flex-1 overflow-y-auto pr-1">
         {goals.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-center">
             <Icon className="h-8 w-8 text-muted-foreground/20 mb-2" />

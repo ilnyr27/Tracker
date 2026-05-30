@@ -27,6 +27,9 @@ import {
   TrendingUp,
   Check,
   X,
+  Camera,
+  BookOpen,
+  FileSpreadsheet,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "motion/react";
@@ -36,7 +39,18 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import type { Task, Category } from "@/lib/supabase/types";
+import type { Task, Category, Note, Photo } from "@/lib/supabase/types";
+
+const ICON_TO_EMOJI: Record<string, string> = {
+  "heart-pulse": "❤️", home: "🏠", "trending-up": "💰", briefcase: "💼",
+  users: "👨‍👩‍👧", "message-circle": "👥", smile: "🌴", "graduation-cap": "📚",
+  moon: "🕌", palette: "🎨",
+};
+function getEmoji(cat: Category): string {
+  if (!cat.icon) return cat.name.charAt(0);
+  if (ICON_TO_EMOJI[cat.icon]) return ICON_TO_EMOJI[cat.icon];
+  return cat.icon;
+}
 
 type DayStats = {
   total: number;
@@ -356,7 +370,7 @@ export default function CalendarPage() {
   );
 }
 
-// ── Day Detail Dialog ──
+// ── Day Detail Dialog — Full daily report ──
 function DayDetailDialog({
   date,
   onClose,
@@ -368,6 +382,26 @@ function DayDetailDialog({
   tasks: Task[];
   categories: Category[];
 }) {
+  const [notes, setNotes] = useState<Note[]>([]);
+  const [photos, setPhotos] = useState<Photo[]>([]);
+  const [loadingExtra, setLoadingExtra] = useState(false);
+
+  useEffect(() => {
+    if (!date) return;
+    const dateStr = format(date, "yyyy-MM-dd");
+    setLoadingExtra(true);
+
+    const supabase = createClient();
+    Promise.all([
+      supabase.from("notes").select("*").eq("note_date", dateStr).order("created_at", { ascending: false }),
+      supabase.from("photos").select("*").eq("photo_date", dateStr).order("created_at", { ascending: false }),
+    ]).then(([notesRes, photosRes]) => {
+      if (notesRes.data) setNotes(notesRes.data);
+      if (photosRes.data) setPhotos(photosRes.data);
+      setLoadingExtra(false);
+    });
+  }, [date]);
+
   if (!date) return null;
 
   const dateStr = format(date, "yyyy-MM-dd");
@@ -375,6 +409,14 @@ function DayDetailDialog({
   const catMap = new Map(categories.map((c) => [c.id, c]));
   const doneTasks = dayTasks.filter((t) => t.is_done);
   const pendingTasks = dayTasks.filter((t) => !t.is_done);
+
+  function getPhotoUrl(path: string) {
+    const supabase = createClient();
+    const { data } = supabase.storage.from("photos").getPublicUrl(path);
+    return data.publicUrl;
+  }
+
+  const hasContent = dayTasks.length > 0 || notes.length > 0 || photos.length > 0;
 
   return (
     <Dialog open={!!date} onOpenChange={(open) => !open && onClose()}>
@@ -385,24 +427,26 @@ function DayDetailDialog({
           </DialogTitle>
         </DialogHeader>
 
-        {dayTasks.length === 0 ? (
+        {!hasContent && !loadingExtra ? (
           <div className="py-8 text-center">
             <CalendarDays className="h-10 w-10 mx-auto text-muted-foreground/20 mb-2" />
-            <p className="text-sm text-muted-foreground/50">Нет задач за этот день</p>
+            <p className="text-sm text-muted-foreground/50">Нет записей за этот день</p>
           </div>
         ) : (
           <div className="space-y-4 max-h-[60vh] overflow-y-auto">
-            {/* Summary */}
-            <div className="flex items-center gap-3 text-sm">
-              <span className="text-emerald-500 font-medium">
-                ✓ {doneTasks.length} выполнено
-              </span>
-              {pendingTasks.length > 0 && (
-                <span className="text-muted-foreground">
-                  ○ {pendingTasks.length} не выполнено
+            {/* Tasks summary */}
+            {dayTasks.length > 0 && (
+              <div className="flex items-center gap-3 text-sm">
+                <span className="text-emerald-500 font-medium">
+                  ✓ {doneTasks.length} выполнено
                 </span>
-              )}
-            </div>
+                {pendingTasks.length > 0 && (
+                  <span className="text-muted-foreground">
+                    ○ {pendingTasks.length} не выполнено
+                  </span>
+                )}
+              </div>
+            )}
 
             {/* Done tasks */}
             {doneTasks.length > 0 && (
@@ -419,7 +463,7 @@ function DayDetailDialog({
                         <span className="text-sm flex-1 truncate">{task.title}</span>
                         {cat && (
                           <span className="text-xs text-muted-foreground/50 shrink-0">
-                            {cat.icon || cat.name.charAt(0)}
+                            {getEmoji(cat)}
                           </span>
                         )}
                       </div>
@@ -444,13 +488,61 @@ function DayDetailDialog({
                         <span className="text-sm flex-1 truncate text-muted-foreground/70">{task.title}</span>
                         {cat && (
                           <span className="text-xs text-muted-foreground/50 shrink-0">
-                            {cat.icon || cat.name.charAt(0)}
+                            {getEmoji(cat)}
                           </span>
                         )}
                       </div>
                     );
                   })}
                 </div>
+              </div>
+            )}
+
+            {/* Notes */}
+            {notes.length > 0 && (
+              <div>
+                <h4 className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1.5">
+                  <BookOpen className="h-3.5 w-3.5" />
+                  Заметки ({notes.length})
+                </h4>
+                <div className="space-y-1.5">
+                  {notes.map((note) => (
+                    <div key={note.id} className="px-3 py-2 rounded-xl bg-blue-500/5 border border-blue-500/10">
+                      <p className="text-sm whitespace-pre-wrap leading-relaxed line-clamp-3">{note.content}</p>
+                      <p className="text-[10px] text-muted-foreground/40 mt-1">
+                        {format(new Date(note.created_at), "HH:mm")}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Photos */}
+            {photos.length > 0 && (
+              <div>
+                <h4 className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1.5">
+                  <Camera className="h-3.5 w-3.5" />
+                  Фото ({photos.length})
+                </h4>
+                <div className="grid grid-cols-3 gap-2">
+                  {photos.map((photo) => (
+                    <div key={photo.id} className="aspect-square rounded-xl overflow-hidden bg-muted">
+                      <img
+                        src={getPhotoUrl(photo.storage_path)}
+                        alt=""
+                        className="h-full w-full object-cover"
+                        loading="lazy"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {loadingExtra && (
+              <div className="flex items-center justify-center py-4">
+                <div className="h-5 w-5 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
               </div>
             )}
           </div>
