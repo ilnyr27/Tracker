@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { LogOut, Palette, Repeat, ChevronRight } from "lucide-react";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
+import { AccentPicker } from "@/components/layout/accent-picker";
 import Link from "next/link";
 
 export default function SettingsPage() {
@@ -18,20 +19,24 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl p-4 space-y-4">
-      <h1 className="text-xl font-bold gradient-text">Настройки</h1>
+    <div className="mx-auto max-w-3xl px-4 py-6 pb-28 md:px-6 md:pb-6 space-y-5">
+      <h1 className="text-2xl font-bold gradient-text tracking-tight">Настройки</h1>
 
-      <Card className="border-border/50 bg-card/80">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Palette className="h-4 w-4 text-primary" />
+      <Card className="border-border/50 bg-card/80 shadow-sm">
+        <CardHeader className="pb-4">
+          <CardTitle className="text-base flex items-center gap-2.5">
+            <Palette className="h-5 w-5 text-primary" />
             Оформление
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-5">
           <div className="flex items-center justify-between">
             <span className="text-sm text-muted-foreground">Тема</span>
             <ThemeToggle />
+          </div>
+          <div className="space-y-3">
+            <span className="text-sm text-muted-foreground">Цвет акцента</span>
+            <AccentPicker />
           </div>
         </CardContent>
       </Card>

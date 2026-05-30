@@ -241,18 +241,20 @@ export default function MatrixPage() {
       {/* Controls */}
       <div className="flex items-center justify-between mt-3 mb-4">
         <div className="flex items-center gap-1">
-          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl" onClick={navigateBack}>
+          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl" onClick={navigateBack} aria-label="Назад">
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl" onClick={() => setCurrentDate(new Date())}>
+          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl" onClick={() => setCurrentDate(new Date())} aria-label="Сегодня">
             <CalendarDays className="h-3.5 w-3.5" />
           </Button>
-          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl" onClick={navigateForward}>
+          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl" onClick={navigateForward} aria-label="Вперёд">
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
-        <div className="flex rounded-xl border border-border/50 overflow-hidden text-xs">
+        <div className="flex rounded-xl border border-border/50 overflow-hidden text-xs" role="tablist" aria-label="Период отображения">
           <button
+            role="tab"
+            aria-selected={viewMode === "week"}
             onClick={() => setViewMode("week")}
             className={`px-3 py-1.5 transition-colors ${
               viewMode === "week" ? "bg-primary/10 text-primary font-medium" : "text-muted-foreground hover:bg-accent/50"
@@ -261,6 +263,8 @@ export default function MatrixPage() {
             Неделя
           </button>
           <button
+            role="tab"
+            aria-selected={viewMode === "month"}
             onClick={() => setViewMode("month")}
             className={`px-3 py-1.5 transition-colors ${
               viewMode === "month" ? "bg-primary/10 text-primary font-medium" : "text-muted-foreground hover:bg-accent/50"
@@ -366,6 +370,7 @@ export default function MatrixPage() {
                           <button
                             onClick={() => toggleCell(goal.id, dateStr)}
                             className="inline-flex h-7 w-7 items-center justify-center rounded-lg transition-all hover:scale-110"
+                            aria-label={`${goal.title} — ${format(day, "d MMM", { locale: ru })}${isDone ? " (выполнено)" : ""}`}
                           >
                             {isDone ? (
                               <div className="h-5 w-5 rounded-md bg-emerald-500/15 flex items-center justify-center">

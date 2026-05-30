@@ -31,7 +31,7 @@ export function BottomNav({ onFabClick }: BottomNavProps) {
   const pathname = usePathname();
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-border/50 bg-background/90 backdrop-blur-xl md:hidden pb-safe">
+    <nav aria-label="Навигация" className="fixed bottom-0 left-0 right-0 z-50 border-t border-border/50 bg-background/90 backdrop-blur-xl md:hidden pb-safe">
       <div className="flex items-center justify-around h-16 px-2">
         {navItems.map((item) => {
           if (item.isFab) {
@@ -41,6 +41,7 @@ export function BottomNav({ onFabClick }: BottomNavProps) {
                 onClick={onFabClick}
                 whileTap={{ scale: 0.9 }}
                 className="flex h-12 w-12 -mt-5 items-center justify-center rounded-2xl gradient-primary text-white shadow-lg shadow-primary/25"
+                aria-label="Быстрое добавление"
               >
                 <Plus className="h-6 w-6" />
               </motion.button>

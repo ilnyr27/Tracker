@@ -5,30 +5,18 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useState } from "react";
 import { motion } from "motion/react";
-import { Target, ArrowRight, Loader2 } from "lucide-react";
-import { z } from "zod/v4";
-
-const loginSchema = z.object({
-  email: z.email("Введите корректный email"),
-  password: z.string().min(6, "Минимум 6 символов"),
-});
-
+import { Target, ArrowRight, Loader2, Eye, EyeOff } from "lucide-react";
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<"login" | "signup">("login");
+  const [showPassword, setShowPassword] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-
-    const result = loginSchema.safeParse({ email, password });
-    if (!result.success) {
-      setError(result.error.issues[0].message);
-      return;
-    }
 
     setLoading(true);
     const supabase = createClient();
@@ -121,9 +109,9 @@ export default function LoginPage() {
                   className="h-12 bg-input/50 border-0 text-base placeholder:text-muted-foreground/50"
                 />
               </div>
-              <div className="glow-ring rounded-lg">
+              <div className="glow-ring rounded-lg relative">
                 <Input
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   placeholder="Пароль"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -132,9 +120,22 @@ export default function LoginPage() {
                   autoComplete={
                     mode === "login" ? "current-password" : "new-password"
                   }
-                  className="h-12 bg-input/50 border-0 text-base placeholder:text-muted-foreground/50"
+                  className="h-12 bg-input/50 border-0 text-base placeholder:text-muted-foreground/50 pr-10"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+                  aria-label={showPassword ? "Скрыть пароль" : "Показать пароль"}
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
               </div>
+              {mode === "signup" && password.length > 0 && password.length < 6 && (
+                <p className="text-[11px] text-muted-foreground/60 px-1">
+                  Минимум 6 символов ({password.length}/6)
+                </p>
+              )}
             </div>
 
             {error && (

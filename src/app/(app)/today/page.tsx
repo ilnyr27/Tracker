@@ -7,7 +7,6 @@ import {
   Check,
   Flame,
   Target,
-  Star,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,20 +17,22 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { motion, AnimatePresence } from "motion/react";
+import { useTheme } from "next-themes";
+import Image from "next/image";
 import type { Goal, Category, Task } from "@/lib/supabase/types";
 
-// Category icon mapping → emoji fallback
-const CATEGORY_EMOJI: Record<string, string> = {
-  "heart-pulse": "\u2764\ufe0f",
-  home: "\ud83c\udfe0",
-  "trending-up": "\ud83d\udcb0",
-  briefcase: "\ud83d\udcbc",
-  users: "\ud83d\udc68\u200d\ud83d\udc69\u200d\ud83d\udc67",
-  "message-circle": "\ud83d\udc65",
-  smile: "\ud83c\udf34",
-  "graduation-cap": "\ud83d\udcda",
-  moon: "\ud83c\udd4c",
-  palette: "\ud83c\udfa8",
+// Category icon → PNG file mapping (light = gold, dark = purple/blue)
+const CATEGORY_ICONS: Record<string, { light: string; dark: string }> = {
+  "heart-pulse": { light: "/cat-icons/health-light.png", dark: "/cat-icons/health-dark.png" },
+  home: { light: "/cat-icons/home-light.png", dark: "/cat-icons/home-dark.png" },
+  "trending-up": { light: "/cat-icons/invest-light.png", dark: "/cat-icons/invest-dark.png" },
+  briefcase: { light: "/cat-icons/work-light.png", dark: "/cat-icons/work-dark.png" },
+  users: { light: "/cat-icons/family-light.png", dark: "/cat-icons/family-dark.png" },
+  "message-circle": { light: "/cat-icons/friends-light.png", dark: "/cat-icons/friends-dark.png" },
+  smile: { light: "/cat-icons/rest-light.png", dark: "/cat-icons/rest-dark.png" },
+  "graduation-cap": { light: "/cat-icons/education-light.png", dark: "/cat-icons/education-dark.png" },
+  moon: { light: "/cat-icons/islam-light.png", dark: "/cat-icons/islam-dark.png" },
+  palette: { light: "/cat-icons/creativity-light.png", dark: "/cat-icons/creativity-dark.png" },
 };
 
 // Short descriptions for categories
@@ -59,12 +60,14 @@ const item = {
 };
 
 export default function MainPage() {
+  const { resolvedTheme } = useTheme();
   const [categories, setCategories] = useState<Category[]>([]);
   const [goals, setGoals] = useState<Goal[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [goalDialogOpen, setGoalDialogOpen] = useState(false);
   const [goalDialogCatId, setGoalDialogCatId] = useState<string | null>(null);
+  const isDark = resolvedTheme === "dark";
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -140,23 +143,24 @@ export default function MainPage() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl p-4 pb-24 md:pb-4">
+    <div className="mx-auto max-w-3xl px-4 py-6 pb-28 md:px-6 md:pb-6">
       {/* Header */}
-      <div className="flex items-center justify-between mb-1">
+      <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold gradient-text">Life OS</h1>
-          <p className="text-xs text-muted-foreground">
+          <h1 className="text-3xl font-bold gradient-text tracking-tight">Life OS</h1>
+          <p className="text-sm text-muted-foreground mt-1">
             Твоя жизнь. Твои правила.
           </p>
         </div>
         <Button
-          variant="ghost"
+          variant="outline"
           size="icon"
-          className="h-9 w-9 rounded-xl"
+          className="h-11 w-11 rounded-2xl border-border/50"
           onClick={() => {
             setGoalDialogCatId(null);
             setGoalDialogOpen(true);
           }}
+          aria-label="Добавить цель"
         >
           <Plus className="h-5 w-5" />
         </Button>
@@ -164,9 +168,9 @@ export default function MainPage() {
 
       {/* Grid of category cards */}
       {loading ? (
-        <div className="grid grid-cols-3 gap-3 mt-4">
-          {[...Array(9)].map((_, i) => (
-            <div key={i} className="aspect-square rounded-2xl bg-card animate-pulse" />
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          {[...Array(10)].map((_, i) => (
+            <div key={i} className="h-40 rounded-2xl bg-card animate-pulse" />
           ))}
         </div>
       ) : (
@@ -175,63 +179,80 @@ export default function MainPage() {
             variants={container}
             initial="hidden"
             animate="show"
-            className="grid grid-cols-3 gap-3 mt-4"
+            className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4"
           >
             {categories.map((cat) => {
               const catGoals = goalsByCategory.get(cat.id) || [];
               const percent = getCategoryPercent(cat.id);
-              const emoji = CATEGORY_EMOJI[cat.icon || ""] || "\ud83d\udccc";
+              const iconPaths = CATEGORY_ICONS[cat.icon || ""];
+              const iconSrc = iconPaths
+                ? (isDark ? iconPaths.dark : iconPaths.light)
+                : null;
               const desc = CATEGORY_DESC[cat.icon || ""] || "";
+              const goalsCount = catGoals.length;
 
               return (
                 <motion.button
                   key={cat.id}
                   variants={item}
-                  whileTap={{ scale: 0.95 }}
+                  whileTap={{ scale: 0.97 }}
                   onClick={() => openAddGoal(cat.id)}
-                  className="relative aspect-square rounded-2xl border border-border/30 bg-card p-3 flex flex-col items-center justify-center text-center gap-1.5 hover:shadow-md transition-shadow group"
+                  className="relative rounded-3xl border border-border/40 bg-card p-5 flex flex-col items-start text-left gap-3 hover:shadow-lg hover:border-border/60 transition-all min-h-[160px]"
+                  aria-label={`${cat.name} — ${percent}%`}
                 >
-                  {/* Icon */}
-                  <div
-                    className="flex h-11 w-11 items-center justify-center rounded-xl text-xl"
-                    style={{ backgroundColor: `${cat.color}15` }}
-                  >
-                    {emoji}
-                  </div>
-
-                  {/* Name */}
-                  <span className="text-xs font-semibold leading-tight line-clamp-1">
-                    {cat.name}
-                  </span>
-
-                  {/* Description */}
-                  <span className="text-[9px] text-muted-foreground/60 leading-tight line-clamp-2 px-1">
-                    {desc}
-                  </span>
-
-                  {/* Progress stars */}
-                  <div className="flex gap-0.5 mt-0.5">
-                    {[...Array(5)].map((_, i) => {
-                      const filled = Math.round(percent / 20);
-                      return (
-                        <Star
-                          key={i}
-                          className="h-2.5 w-2.5"
-                          fill={i < filled ? (cat.color || "#f59e0b") : "transparent"}
-                          stroke={i < filled ? (cat.color || "#f59e0b") : "oklch(0.6 0 0)"}
-                          strokeWidth={1.5}
+                  {/* Icon + Percent row */}
+                  <div className="flex items-center justify-between w-full">
+                    {iconSrc ? (
+                      <div className="h-14 w-14 rounded-2xl overflow-hidden">
+                        <Image
+                          src={iconSrc}
+                          alt={cat.name}
+                          width={56}
+                          height={56}
+                          className="object-contain"
                         />
-                      );
-                    })}
+                      </div>
+                    ) : (
+                      <div
+                        className="flex h-14 w-14 items-center justify-center rounded-2xl text-2xl"
+                        style={{ backgroundColor: `${cat.color}15` }}
+                      >
+                        {cat.name.charAt(0)}
+                      </div>
+                    )}
+                    <span
+                      className="text-xl font-bold tabular-nums"
+                      style={{ color: cat.color || "var(--primary)" }}
+                    >
+                      {percent}%
+                    </span>
                   </div>
 
-                  {/* Percentage badge */}
-                  <span
-                    className="absolute top-2 right-2 text-[10px] font-bold"
-                    style={{ color: cat.color || "#6366f1" }}
-                  >
-                    {percent}%
-                  </span>
+                  {/* Name + Description */}
+                  <div className="space-y-1">
+                    <span className="text-base font-semibold leading-snug line-clamp-1 block">
+                      {cat.name}
+                    </span>
+                    <span className="text-sm text-muted-foreground leading-snug line-clamp-1 block">
+                      {desc}
+                    </span>
+                  </div>
+
+                  {/* Progress bar */}
+                  <div className="w-full mt-auto">
+                    <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                      <motion.div
+                        className="h-full rounded-full"
+                        style={{ backgroundColor: cat.color || "var(--primary)" }}
+                        initial={{ width: 0 }}
+                        animate={{ width: `${percent}%` }}
+                        transition={{ duration: 0.8, ease: "easeOut" }}
+                      />
+                    </div>
+                    <span className="text-xs text-muted-foreground/60 mt-1.5 block">
+                      {goalsCount} {goalsCount === 1 ? "цель" : goalsCount < 5 ? "цели" : "целей"}
+                    </span>
+                  </div>
                 </motion.button>
               );
             })}
@@ -239,11 +260,10 @@ export default function MainPage() {
             {/* Add category placeholder */}
             <motion.div
               variants={item}
-              className="aspect-square rounded-2xl border-2 border-dashed border-border/30 flex flex-col items-center justify-center gap-1 text-muted-foreground/30 hover:border-border/60 hover:text-muted-foreground/50 transition-colors cursor-pointer"
+              className="rounded-2xl border-2 border-dashed border-border/30 flex flex-col items-center justify-center gap-2 text-muted-foreground/40 hover:border-primary/40 hover:text-primary/60 transition-all cursor-pointer min-h-[140px]"
             >
-              <Plus className="h-6 w-6" />
-              <span className="text-[10px]">Добавить</span>
-              <span className="text-[10px]">категорию</span>
+              <Plus className="h-7 w-7" />
+              <span className="text-xs font-medium">Добавить категорию</span>
             </motion.div>
           </motion.div>
         </AnimatePresence>
@@ -255,7 +275,7 @@ export default function MainPage() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.5 }}
-          className="text-center text-xs text-muted-foreground/40 mt-6 italic"
+          className="text-center text-sm text-muted-foreground/40 mt-8 italic"
         >
           Баланс — это прогресс. Работай над собой каждый день.
         </motion.p>
@@ -297,6 +317,8 @@ function CategoryGoalsDialog({
   goalsByCategory: Map<string, Goal[]>;
   onDataChanged: () => void;
 }) {
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === "dark";
   const [addMode, setAddMode] = useState(false);
   const [title, setTitle] = useState("");
   const [trackingType, setTrackingType] = useState<"habit" | "milestone">("habit");
@@ -355,25 +377,27 @@ function CategoryGoalsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md bg-card border-border/50">
+      <DialogContent className="sm:max-w-lg bg-card border-border/50">
         <DialogHeader>
-          <DialogTitle className="text-base flex items-center gap-2">
-            {cat && (
-              <div
-                className="h-6 w-6 rounded-lg flex items-center justify-center text-sm"
-                style={{ backgroundColor: `${cat.color}15` }}
-              >
-                {CATEGORY_EMOJI[cat.icon || ""] || "\ud83d\udccc"}
-              </div>
-            )}
+          <DialogTitle className="text-lg flex items-center gap-3">
+            {cat && (() => {
+              const iconP = CATEGORY_ICONS[cat.icon || ""];
+              return iconP ? (
+                <Image src={isDark ? iconP.dark : iconP.light} alt={cat.name} width={40} height={40} className="rounded-xl" />
+              ) : (
+                <div className="h-10 w-10 rounded-xl flex items-center justify-center text-xl" style={{ backgroundColor: `${cat.color}15` }}>
+                  {cat.name.charAt(0)}
+                </div>
+              );
+            })()}
             <span style={{ color: cat?.color || undefined }}>{cat?.name || "Цели"}</span>
           </DialogTitle>
         </DialogHeader>
 
         {/* Goals list */}
-        <div className="space-y-2 max-h-[40vh] overflow-y-auto">
+        <div className="space-y-3 max-h-[50vh] overflow-y-auto py-1">
           {catGoals.length === 0 && !addMode && (
-            <p className="text-sm text-muted-foreground/40 text-center py-4">
+            <p className="text-sm text-muted-foreground/50 text-center py-8">
               Нет целей. Добавьте первую!
             </p>
           )}
@@ -385,22 +409,22 @@ function CategoryGoalsDialog({
             const percent = target > 0 ? Math.min(Math.round((done / target) * 100), 100) : 0;
 
             return (
-              <div key={goal.id} className="rounded-xl border border-border/30 p-3">
+              <div key={goal.id} className="rounded-xl border border-border/30 p-4">
                 {isHabit ? (
                   <div>
-                    <div className="flex items-center justify-between mb-1.5">
+                    <div className="flex items-center justify-between mb-2">
                       <span className="text-sm font-medium">{goal.title}</span>
-                      <span className="text-xs text-muted-foreground">
+                      <span className="text-sm text-muted-foreground tabular-nums">
                         {done}/{target}{" "}
-                        <span className="font-semibold" style={{ color: cat?.color || "#6366f1" }}>
+                        <span className="font-semibold" style={{ color: cat?.color || "var(--primary)" }}>
                           {percent}%
                         </span>
                       </span>
                     </div>
-                    <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+                    <div className="h-2.5 w-full rounded-full bg-muted overflow-hidden">
                       <motion.div
                         className="h-full rounded-full"
-                        style={{ backgroundColor: cat?.color || "#6366f1" }}
+                        style={{ backgroundColor: cat?.color || "var(--primary)" }}
                         initial={{ width: 0 }}
                         animate={{ width: `${percent}%` }}
                         transition={{ duration: 0.6 }}
@@ -410,16 +434,16 @@ function CategoryGoalsDialog({
                 ) : (
                   <button
                     onClick={() => toggleMilestone(goal)}
-                    className="flex items-center gap-2 w-full text-left"
+                    className="flex items-center gap-3 w-full text-left min-h-[44px]"
                   >
                     <div
-                      className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2 transition-all"
+                      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border-2 transition-all"
                       style={{
                         borderColor: goal.status === "completed" ? (cat?.color || "#22c55e") : "oklch(0.5 0 0)",
                         backgroundColor: goal.status === "completed" ? (cat?.color || "#22c55e") : "transparent",
                       }}
                     >
-                      {goal.status === "completed" && <Check className="h-3 w-3 text-white" />}
+                      {goal.status === "completed" && <Check className="h-3.5 w-3.5 text-white" />}
                     </div>
                     <span className={`text-sm ${goal.status === "completed" ? "line-through text-muted-foreground/50" : ""}`}>
                       {goal.title}
@@ -433,48 +457,48 @@ function CategoryGoalsDialog({
 
         {/* Add goal form */}
         {addMode ? (
-          <form onSubmit={handleAddGoal} className="space-y-3 pt-2 border-t border-border/30">
+          <form onSubmit={handleAddGoal} className="space-y-4 pt-4 border-t border-border/30">
             <Input
               placeholder="Название цели"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               autoFocus
-              className="bg-input/50 border-border/50"
+              className="h-12 bg-input/50 border-border/50 text-base"
             />
-            <div className="flex gap-2">
+            <div className="flex gap-3">
               <button
                 type="button"
                 onClick={() => setTrackingType("habit")}
-                className={`flex-1 py-2 rounded-xl text-xs border transition-all ${
+                className={`flex-1 py-3 rounded-xl text-sm border transition-all ${
                   trackingType === "habit"
                     ? "border-primary/50 bg-primary/10 text-primary font-medium"
                     : "border-border/30 text-muted-foreground"
                 }`}
               >
-                <Flame className="h-3.5 w-3.5 mx-auto mb-0.5" />
+                <Flame className="h-4 w-4 mx-auto mb-1" />
                 Привычка
               </button>
               <button
                 type="button"
                 onClick={() => setTrackingType("milestone")}
-                className={`flex-1 py-2 rounded-xl text-xs border transition-all ${
+                className={`flex-1 py-3 rounded-xl text-sm border transition-all ${
                   trackingType === "milestone"
                     ? "border-primary/50 bg-primary/10 text-primary font-medium"
                     : "border-border/30 text-muted-foreground"
                 }`}
               >
-                <Target className="h-3.5 w-3.5 mx-auto mb-0.5" />
+                <Target className="h-4 w-4 mx-auto mb-1" />
                 Веха
               </button>
             </div>
             {trackingType === "habit" && (
-              <div className="flex gap-1.5">
+              <div className="flex gap-2">
                 {["7", "14", "30", "60", "90"].map((d) => (
                   <button
                     key={d}
                     type="button"
                     onClick={() => setTargetDays(d)}
-                    className={`flex-1 py-1.5 text-xs rounded-lg border transition-all ${
+                    className={`flex-1 py-2.5 text-sm rounded-xl border transition-all ${
                       targetDays === d
                         ? "border-primary/50 bg-primary/10 text-primary font-medium"
                         : "border-border/30 text-muted-foreground"
@@ -485,14 +509,14 @@ function CategoryGoalsDialog({
                 ))}
               </div>
             )}
-            <div className="flex gap-2">
-              <Button type="button" variant="ghost" className="flex-1" onClick={() => setAddMode(false)}>
+            <div className="flex gap-3">
+              <Button type="button" variant="ghost" className="flex-1 h-11" onClick={() => setAddMode(false)}>
                 Отмена
               </Button>
               <Button
                 type="submit"
                 disabled={saving || !title.trim()}
-                className="flex-1 gradient-primary text-white border-0"
+                className="flex-1 h-11 gradient-primary text-white border-0"
               >
                 {saving ? "..." : "Создать"}
               </Button>
@@ -501,10 +525,10 @@ function CategoryGoalsDialog({
         ) : (
           <Button
             variant="outline"
-            className="w-full rounded-xl border-dashed"
+            className="w-full h-12 rounded-xl border-dashed text-sm"
             onClick={() => setAddMode(true)}
           >
-            <Plus className="h-4 w-4 mr-1" />
+            <Plus className="h-4 w-4 mr-2" />
             Добавить цель
           </Button>
         )}
@@ -513,4 +537,3 @@ function CategoryGoalsDialog({
   );
 }
 
-const CATEGORY_EMOJI_EXPORT = CATEGORY_EMOJI;
