@@ -161,7 +161,7 @@ export default function GoalsPage() {
         <div className="max-w-7xl mx-auto">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h1 className="text-2xl font-bold gradient-text tracking-tight">Путь А → Б</h1>
+              <h1 className="text-2xl font-bold gradient-text tracking-tight">Канбан</h1>
               <p className="text-sm text-muted-foreground mt-1">
                 {totalGoals > 0
                   ? `${completedGoals} из ${totalGoals} целей выполнено`

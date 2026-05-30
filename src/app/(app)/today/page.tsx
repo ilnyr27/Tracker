@@ -67,6 +67,10 @@ export default function MainPage() {
   const [loading, setLoading] = useState(true);
   const [goalDialogOpen, setGoalDialogOpen] = useState(false);
   const [goalDialogCatId, setGoalDialogCatId] = useState<string | null>(null);
+  const [addCatOpen, setAddCatOpen] = useState(false);
+  const [newCatName, setNewCatName] = useState("");
+  const [newCatColor, setNewCatColor] = useState("#6366f1");
+  const [savingCat, setSavingCat] = useState(false);
   const isDark = resolvedTheme === "dark";
 
   const loadData = useCallback(async () => {
@@ -140,6 +144,29 @@ export default function MainPage() {
   function openAddGoal(categoryId: string) {
     setGoalDialogCatId(categoryId);
     setGoalDialogOpen(true);
+  }
+
+  async function handleAddCategory(e: React.FormEvent) {
+    e.preventDefault();
+    if (!newCatName.trim()) return;
+    setSavingCat(true);
+
+    const supabase = createClient();
+    const { data: userData } = await supabase.auth.getUser();
+    if (!userData.user) return;
+
+    await supabase.from("categories").insert({
+      user_id: userData.user.id,
+      name: newCatName.trim(),
+      color: newCatColor,
+      sort_order: categories.length,
+      is_active: true,
+    });
+
+    setSavingCat(false);
+    setAddCatOpen(false);
+    setNewCatName("");
+    loadData();
   }
 
   return (
@@ -258,13 +285,14 @@ export default function MainPage() {
             })}
 
             {/* Add category placeholder */}
-            <motion.div
+            <motion.button
               variants={item}
+              onClick={() => setAddCatOpen(true)}
               className="rounded-2xl border-2 border-dashed border-border/30 flex flex-col items-center justify-center gap-2 text-muted-foreground/40 hover:border-primary/40 hover:text-primary/60 transition-all cursor-pointer min-h-[140px]"
             >
               <Plus className="h-7 w-7" />
               <span className="text-xs font-medium">Добавить категорию</span>
-            </motion.div>
+            </motion.button>
           </motion.div>
         </AnimatePresence>
       )}
@@ -292,6 +320,51 @@ export default function MainPage() {
         goalsByCategory={goalsByCategory}
         onDataChanged={loadData}
       />
+
+      {/* Add category dialog */}
+      <Dialog open={addCatOpen} onOpenChange={setAddCatOpen}>
+        <DialogContent className="sm:max-w-md bg-card border-border/50">
+          <DialogHeader>
+            <DialogTitle className="text-lg">Новая категория</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleAddCategory} className="space-y-4">
+            <Input
+              placeholder="Название категории"
+              value={newCatName}
+              onChange={(e) => setNewCatName(e.target.value)}
+              required
+              autoFocus
+              className="h-12 bg-input/50 border-border/50 text-base"
+            />
+            <div>
+              <label className="text-xs text-muted-foreground mb-2 block">Цвет</label>
+              <div className="flex gap-3 flex-wrap">
+                {["#6366f1", "#3b82f6", "#14b8a6", "#22c55e", "#f59e0b", "#ef4444", "#ec4899", "#8b5cf6"].map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => setNewCatColor(c)}
+                    className="h-9 w-9 rounded-full border-2 transition-all"
+                    style={{
+                      backgroundColor: c,
+                      borderColor: newCatColor === c ? c : "transparent",
+                      boxShadow: newCatColor === c ? `0 0 0 3px ${c}33` : "none",
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <Button type="button" variant="ghost" className="flex-1 h-11" onClick={() => setAddCatOpen(false)}>
+                Отмена
+              </Button>
+              <Button type="submit" disabled={savingCat || !newCatName.trim()} className="flex-1 h-11 gradient-primary text-white border-0">
+                {savingCat ? "..." : "Создать"}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

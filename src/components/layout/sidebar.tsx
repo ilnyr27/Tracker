@@ -39,7 +39,7 @@ const navGroups = [
   {
     label: "Цели",
     items: [
-      { href: "/goals", label: "Путь А → Б", icon: Target },
+      { href: "/goals", label: "Канбан", icon: Target },
     ],
   },
   {

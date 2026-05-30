@@ -1,7 +1,7 @@
 "use client";
 
 import { useTheme } from "next-themes";
-import { Sun, Moon, Monitor } from "lucide-react";
+import { Sun, Moon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { motion } from "motion/react";
 
@@ -15,14 +15,11 @@ export function ThemeToggle({ compact = false }: { compact?: boolean }) {
   const options = [
     { value: "light", icon: Sun, label: "Светлая" },
     { value: "dark", icon: Moon, label: "Тёмная" },
-    { value: "system", icon: Monitor, label: "Система" },
   ] as const;
 
   if (compact) {
-    const next =
-      theme === "light" ? "dark" : theme === "dark" ? "system" : "light";
-    const CurrentIcon =
-      theme === "light" ? Sun : theme === "dark" ? Moon : Monitor;
+    const next = theme === "light" ? "dark" : "light";
+    const CurrentIcon = theme === "dark" ? Moon : Sun;
 
     return (
       <button
