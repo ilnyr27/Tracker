@@ -11,6 +11,7 @@ import {
   Pause,
   Archive,
   GripVertical,
+  ListTodo,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -65,6 +66,8 @@ const LEVEL_LABELS: Record<Goal["level"], string> = {
 
 const LEVEL_ORDER: Goal["level"][] = ["decade", "year", "month", "week", "day"];
 
+type KanbanMode = "tasks" | "goals";
+
 // ── Kanban page ──
 export default function GoalsPage() {
   const [goals, setGoals] = useState<Goal[]>([]);
@@ -74,6 +77,7 @@ export default function GoalsPage() {
   const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
   const [filterCategory, setFilterCategory] = useState<string>("all");
   const [draggedGoal, setDraggedGoal] = useState<Goal | null>(null);
+  const [kanbanMode, setKanbanMode] = useState<KanbanMode>("tasks");
 
   // DnD sensors: pointer (mouse) + touch (mobile)
   const pointerSensor = useSensor(PointerSensor, {
@@ -171,9 +175,15 @@ export default function GoalsPage() {
     }
   }
 
-  // Filter goals
-  const filteredGoals = goals.filter((g) => {
-    if (filterCategory !== "all" && g.category_id !== filterCategory) return false;
+  // Filter goals by mode: "tasks" = standalone (no category), "goals" = from categories
+  const modeGoals = goals.filter((g) => {
+    if (kanbanMode === "tasks") return !g.category_id;
+    return !!g.category_id;
+  });
+
+  // Further filter by category (only relevant in "goals" mode)
+  const filteredGoals = modeGoals.filter((g) => {
+    if (kanbanMode === "goals" && filterCategory !== "all" && g.category_id !== filterCategory) return false;
     return true;
   });
 
@@ -207,8 +217,8 @@ export default function GoalsPage() {
               <h1 className="text-2xl font-bold gradient-text tracking-tight">Канбан</h1>
               <p className="text-sm text-muted-foreground mt-1">
                 {totalGoals > 0
-                  ? `${completedGoals} из ${totalGoals} целей выполнено`
-                  : "Определи свои цели и двигайся к ним"}
+                  ? `${completedGoals} из ${totalGoals} выполнено`
+                  : kanbanMode === "tasks" ? "Создавай задачи и двигай по колонкам" : "Цели из категорий на главном экране"}
               </p>
             </div>
             <Button
@@ -216,12 +226,36 @@ export default function GoalsPage() {
               onClick={openCreate}
             >
               <Plus className="h-4 w-4 mr-2" />
-              Новая цель
+              {kanbanMode === "tasks" ? "Задача" : "Цель"}
             </Button>
           </div>
 
-          {/* Category filter */}
-          {categories.length > 0 && (
+          {/* Mode toggle */}
+          <div className="flex items-center gap-2 mb-3">
+            <div className="flex rounded-xl border border-border/50 overflow-hidden text-xs">
+              <button
+                onClick={() => { setKanbanMode("tasks"); setFilterCategory("all"); }}
+                className={`flex items-center gap-1.5 px-4 py-2 transition-colors ${
+                  kanbanMode === "tasks" ? "bg-primary/10 text-primary font-medium" : "text-muted-foreground hover:bg-accent/50"
+                }`}
+              >
+                <ListTodo className="h-3.5 w-3.5" />
+                Мои задачи
+              </button>
+              <button
+                onClick={() => setKanbanMode("goals")}
+                className={`flex items-center gap-1.5 px-4 py-2 transition-colors ${
+                  kanbanMode === "goals" ? "bg-primary/10 text-primary font-medium" : "text-muted-foreground hover:bg-accent/50"
+                }`}
+              >
+                <Target className="h-3.5 w-3.5" />
+                По целям
+              </button>
+            </div>
+          </div>
+
+          {/* Category filter (only in goals mode) */}
+          {kanbanMode === "goals" && categories.length > 0 && (
             <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
               <button
                 onClick={() => setFilterCategory("all")}
@@ -332,6 +366,7 @@ export default function GoalsPage() {
         categories={categories}
         allGoals={goals}
         onSaved={loadData}
+        kanbanMode={kanbanMode}
       />
     </div>
   );
@@ -574,6 +609,7 @@ function GoalDialog({
   categories,
   allGoals,
   onSaved,
+  kanbanMode,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -581,6 +617,7 @@ function GoalDialog({
   categories: Category[];
   allGoals: Goal[];
   onSaved: () => void;
+  kanbanMode: KanbanMode;
 }) {
   const isEdit = !!goal;
 
@@ -664,7 +701,7 @@ function GoalDialog({
       <DialogContent className="sm:max-w-lg bg-card border-border/50">
         <DialogHeader>
           <DialogTitle className="text-lg gradient-text">
-            {isEdit ? "Редактировать цель" : "Новая цель"}
+            {isEdit ? "Редактировать" : kanbanMode === "tasks" ? "Новая задача" : "Новая цель"}
           </DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -685,7 +722,7 @@ function GoalDialog({
             className="bg-input/50 border-border/50 resize-none text-sm"
           />
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className={`grid ${kanbanMode === "tasks" && !isEdit ? "grid-cols-1" : "grid-cols-2"} gap-3`}>
             <div>
               <label className="text-xs text-muted-foreground mb-1.5 block">Уровень</label>
               <Select value={level} onValueChange={(v) => setLevel(v as Goal["level"])}>
@@ -700,20 +737,22 @@ function GoalDialog({
               </Select>
             </div>
 
-            <div>
-              <label className="text-xs text-muted-foreground mb-1.5 block">Категория</label>
-              <Select value={categoryId} onValueChange={(v) => setCategoryId(v ?? "none")}>
-                <SelectTrigger className="h-11 bg-input/50 border-border/50">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Без категории</SelectItem>
-                  {categories.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {(kanbanMode === "goals" || isEdit) && (
+              <div>
+                <label className="text-xs text-muted-foreground mb-1.5 block">Категория</label>
+                <Select value={categoryId} onValueChange={(v) => setCategoryId(v ?? "none")}>
+                  <SelectTrigger className="h-11 bg-input/50 border-border/50">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Без категории</SelectItem>
+                    {categories.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
 
           {isEdit && (

@@ -7,6 +7,9 @@ import {
   Check,
   Flame,
   Target,
+  Trash2,
+  Archive,
+  MoreHorizontal,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,6 +29,28 @@ const EMOJI_OPTIONS = [
   "🍎", "🌍", "✈️", "📝", "🔬", "🎮", "🐾", "☕",
   "🌟", "🧠", "💪", "🏆", "📸", "🎓", "🌱", "⚡",
 ];
+
+// Fallback: old lucide icon names → emoji
+const ICON_TO_EMOJI: Record<string, string> = {
+  "heart-pulse": "❤️",
+  home: "🏠",
+  "trending-up": "💰",
+  briefcase: "💼",
+  users: "👨‍👩‍👧",
+  "message-circle": "👥",
+  smile: "🌴",
+  "graduation-cap": "📚",
+  moon: "🕌",
+  palette: "🎨",
+};
+
+function getEmoji(cat: Category): string {
+  if (!cat.icon) return cat.name.charAt(0);
+  // If it's an old lucide icon name, convert
+  if (ICON_TO_EMOJI[cat.icon]) return ICON_TO_EMOJI[cat.icon];
+  // Otherwise it's already an emoji
+  return cat.icon;
+}
 
 const container = {
   hidden: { opacity: 0 },
@@ -123,6 +148,18 @@ export default function MainPage() {
     setGoalDialogOpen(true);
   }
 
+  async function archiveCategory(id: string) {
+    const supabase = createClient();
+    setCategories((prev) => prev.filter((c) => c.id !== id));
+    await supabase.from("categories").update({ is_active: false }).eq("id", id);
+  }
+
+  async function deleteCategory(id: string) {
+    const supabase = createClient();
+    setCategories((prev) => prev.filter((c) => c.id !== id));
+    await supabase.from("categories").delete().eq("id", id);
+  }
+
   async function handleAddCategory(e: React.FormEvent) {
     e.preventDefault();
     if (!newCatName.trim()) return;
@@ -190,57 +227,78 @@ export default function MainPage() {
             {categories.map((cat) => {
               const catGoals = goalsByCategory.get(cat.id) || [];
               const percent = getCategoryPercent(cat.id);
-              const emoji = cat.icon || cat.name.charAt(0);
+              const emoji = getEmoji(cat);
               const goalsCount = catGoals.length;
 
               return (
-                <motion.button
+                <motion.div
                   key={cat.id}
                   variants={item}
-                  whileTap={{ scale: 0.97 }}
-                  onClick={() => openAddGoal(cat.id)}
-                  className="relative rounded-3xl border border-border/40 bg-card p-5 flex flex-col items-start text-left gap-3 hover:shadow-lg hover:border-border/60 transition-all min-h-[160px]"
-                  aria-label={`${cat.name} — ${percent}%`}
+                  className="relative rounded-3xl border border-border/40 bg-card p-5 flex flex-col items-start text-left gap-3 hover:shadow-lg hover:border-border/60 transition-all min-h-[160px] group"
                 >
-                  {/* Emoji + Percent row */}
-                  <div className="flex items-center justify-between w-full">
-                    <div
-                      className="flex h-14 w-14 items-center justify-center rounded-2xl text-3xl"
-                      style={{ backgroundColor: `${cat.color || "var(--primary)"}15` }}
+                  {/* Context menu */}
+                  <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10 flex gap-1">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); archiveCategory(cat.id); }}
+                      className="p-1.5 rounded-lg hover:bg-accent/60 text-muted-foreground/40 hover:text-amber-500 transition-all"
+                      title="В архив"
                     >
-                      {emoji}
-                    </div>
-                    <span
-                      className="text-xl font-bold tabular-nums"
-                      style={{ color: cat.color || "var(--primary)" }}
+                      <Archive className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); deleteCategory(cat.id); }}
+                      className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground/40 hover:text-destructive transition-all"
+                      title="Удалить"
                     >
-                      {percent}%
-                    </span>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
                   </div>
 
-                  {/* Name */}
-                  <div className="space-y-1">
-                    <span className="text-base font-semibold leading-snug line-clamp-1 block">
-                      {cat.name}
-                    </span>
-                  </div>
-
-                  {/* Progress bar */}
-                  <div className="w-full mt-auto">
-                    <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
-                      <motion.div
-                        className="h-full rounded-full"
-                        style={{ backgroundColor: cat.color || "var(--primary)" }}
-                        initial={{ width: 0 }}
-                        animate={{ width: `${percent}%` }}
-                        transition={{ duration: 0.8, ease: "easeOut" }}
-                      />
+                  {/* Clickable area */}
+                  <button
+                    onClick={() => openAddGoal(cat.id)}
+                    className="flex flex-col items-start text-left gap-3 w-full flex-1"
+                  >
+                    {/* Emoji + Percent row */}
+                    <div className="flex items-center justify-between w-full">
+                      <div
+                        className="flex h-14 w-14 items-center justify-center rounded-2xl text-3xl"
+                        style={{ backgroundColor: `${cat.color || "var(--primary)"}15` }}
+                      >
+                        {emoji}
+                      </div>
+                      <span
+                        className="text-xl font-bold tabular-nums"
+                        style={{ color: cat.color || "var(--primary)" }}
+                      >
+                        {percent}%
+                      </span>
                     </div>
-                    <span className="text-xs text-muted-foreground/60 mt-1.5 block">
-                      {goalsCount} {goalsCount === 1 ? "цель" : goalsCount < 5 ? "цели" : "целей"}
-                    </span>
-                  </div>
-                </motion.button>
+
+                    {/* Name */}
+                    <div className="space-y-1">
+                      <span className="text-base font-semibold leading-snug line-clamp-1 block">
+                        {cat.name}
+                      </span>
+                    </div>
+
+                    {/* Progress bar */}
+                    <div className="w-full mt-auto">
+                      <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                        <motion.div
+                          className="h-full rounded-full"
+                          style={{ backgroundColor: cat.color || "var(--primary)" }}
+                          initial={{ width: 0 }}
+                          animate={{ width: `${percent}%` }}
+                          transition={{ duration: 0.8, ease: "easeOut" }}
+                        />
+                      </div>
+                      <span className="text-xs text-muted-foreground/60 mt-1.5 block">
+                        {goalsCount} {goalsCount === 1 ? "цель" : goalsCount < 5 ? "цели" : "целей"}
+                      </span>
+                    </div>
+                  </button>
+                </motion.div>
               );
             })}
 
@@ -373,6 +431,8 @@ function CategoryGoalsDialog({
   const [title, setTitle] = useState("");
   const [trackingType, setTrackingType] = useState<"habit" | "milestone">("habit");
   const [targetDays, setTargetDays] = useState("30");
+  const [recurrenceMode, setRecurrenceMode] = useState<"daily" | "weekly">("daily");
+  const [weekDays, setWeekDays] = useState<number[]>([]);
   const [saving, setSaving] = useState(false);
 
   const cat = categories.find((c) => c.id === categoryId);
@@ -384,6 +444,8 @@ function CategoryGoalsDialog({
       setTitle("");
       setTrackingType("habit");
       setTargetDays("30");
+      setRecurrenceMode("daily");
+      setWeekDays([]);
     }
   }, [open]);
 
@@ -396,15 +458,28 @@ function CategoryGoalsDialog({
     const { data: userData } = await supabase.auth.getUser();
     if (!userData.user) return;
 
-    await supabase.from("goals").insert({
+    const { data: goalData } = await supabase.from("goals").insert({
       user_id: userData.user.id,
       category_id: categoryId,
       title: title.trim(),
       tracking_type: trackingType,
-      target_days: trackingType === "habit" ? parseInt(targetDays) || 30 : null,
+      target_days: trackingType === "habit" ? (targetDays === "∞" ? 99999 : parseInt(targetDays) || 30) : null,
       level: "month",
       sort_order: 0,
-    });
+    }).select().single();
+
+    // If weekly recurrence, also create a task template
+    if (trackingType === "habit" && recurrenceMode === "weekly" && weekDays.length > 0 && goalData) {
+      await supabase.from("task_templates").insert({
+        user_id: userData.user.id,
+        goal_id: goalData.id,
+        category_id: categoryId,
+        title: title.trim(),
+        recurrence: "weekly",
+        recurrence_days: weekDays,
+        sort_order: 0,
+      });
+    }
 
     setSaving(false);
     setAddMode(false);
@@ -432,7 +507,7 @@ function CategoryGoalsDialog({
           <DialogTitle className="text-lg flex items-center gap-3">
             {cat && (
               <div className="h-10 w-10 rounded-xl flex items-center justify-center text-2xl" style={{ backgroundColor: `${cat.color || "var(--primary)"}15` }}>
-                {cat.icon || cat.name.charAt(0)}
+                {getEmoji(cat)}
               </div>
             )}
             <span style={{ color: cat?.color || undefined }}>{cat?.name || "Цели"}</span>
@@ -537,21 +612,104 @@ function CategoryGoalsDialog({
               </button>
             </div>
             {trackingType === "habit" && (
-              <div className="flex gap-2">
-                {["7", "14", "30", "60", "90"].map((d) => (
+              <div className="space-y-3">
+                {/* Recurrence mode toggle */}
+                <div className="flex rounded-xl border border-border/50 overflow-hidden text-xs">
                   <button
-                    key={d}
                     type="button"
-                    onClick={() => setTargetDays(d)}
-                    className={`flex-1 py-2.5 text-sm rounded-xl border transition-all ${
-                      targetDays === d
+                    onClick={() => setRecurrenceMode("daily")}
+                    className={`flex-1 py-2 transition-colors ${
+                      recurrenceMode === "daily" ? "bg-primary/10 text-primary font-medium" : "text-muted-foreground hover:bg-accent/50"
+                    }`}
+                  >
+                    Каждый день
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRecurrenceMode("weekly")}
+                    className={`flex-1 py-2 transition-colors ${
+                      recurrenceMode === "weekly" ? "bg-primary/10 text-primary font-medium" : "text-muted-foreground hover:bg-accent/50"
+                    }`}
+                  >
+                    По дням недели
+                  </button>
+                </div>
+
+                {/* Weekly day picker */}
+                {recurrenceMode === "weekly" && (
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1.5 block">В какие дни?</label>
+                    <div className="flex gap-1.5">
+                      {["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"].map((name, i) => {
+                        const dayNum = i === 6 ? 0 : i + 1; // JS: 0=Sun, 1=Mon...
+                        return (
+                          <button
+                            key={i}
+                            type="button"
+                            onClick={() => setWeekDays((prev) => prev.includes(dayNum) ? prev.filter((d) => d !== dayNum) : [...prev, dayNum])}
+                            className={`flex-1 py-2 text-xs rounded-xl font-medium transition-all ${
+                              weekDays.includes(dayNum)
+                                ? "gradient-primary text-white"
+                                : "bg-muted text-muted-foreground hover:bg-accent"
+                            }`}
+                          >
+                            {name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Target days (always shown) */}
+                <div className="flex items-center gap-3">
+                  <input
+                    type="range"
+                    min="1"
+                    max="365"
+                    value={targetDays === "∞" ? "365" : targetDays}
+                    onChange={(e) => setTargetDays(e.target.value)}
+                    className="flex-1 h-2 rounded-full accent-primary cursor-pointer"
+                  />
+                  <div className="flex items-center gap-1.5">
+                    <Input
+                      type="number"
+                      min="1"
+                      value={targetDays === "∞" ? "" : targetDays}
+                      onChange={(e) => setTargetDays(e.target.value || "30")}
+                      placeholder="∞"
+                      className="w-16 h-9 text-center text-sm bg-input/50 border-border/50"
+                    />
+                    <span className="text-xs text-muted-foreground">дн</span>
+                  </div>
+                </div>
+                <div className="flex gap-1.5">
+                  {["7", "14", "30", "90", "365"].map((d) => (
+                    <button
+                      key={d}
+                      type="button"
+                      onClick={() => setTargetDays(d)}
+                      className={`flex-1 py-1.5 text-xs rounded-lg border transition-all ${
+                        targetDays === d
+                          ? "border-primary/50 bg-primary/10 text-primary font-medium"
+                          : "border-border/30 text-muted-foreground"
+                      }`}
+                    >
+                      {d === "365" ? "1 год" : `${d}д`}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setTargetDays("∞")}
+                    className={`flex-1 py-1.5 text-xs rounded-lg border transition-all ${
+                      targetDays === "∞"
                         ? "border-primary/50 bg-primary/10 text-primary font-medium"
                         : "border-border/30 text-muted-foreground"
                     }`}
                   >
-                    {d}д
+                    ∞
                   </button>
-                ))}
+                </div>
               </div>
             )}
             <div className="flex gap-3">

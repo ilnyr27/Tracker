@@ -4,6 +4,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { QueryProvider } from "@/providers/query-provider";
 import { ThemeProvider } from "@/providers/theme-provider";
 import { AccentProvider } from "@/providers/accent-provider";
+import { ServiceWorkerRegister } from "@/components/sw-register";
 import "./globals.css";
 
 const inter = Inter({
@@ -79,6 +80,7 @@ export default function RootLayout({
               {children}
             </QueryProvider>
             <Toaster />
+            <ServiceWorkerRegister />
           </AccentProvider>
         </ThemeProvider>
       </body>
