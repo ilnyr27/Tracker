@@ -38,9 +38,9 @@ import type { Goal, Category } from "@/lib/supabase/types";
 type ColumnId = Goal["status"];
 
 const COLUMNS: { id: ColumnId; label: string; icon: typeof Check; color: string; emptyText: string }[] = [
-  { id: "active", label: "Активные", icon: Clock, color: "text-blue-500", emptyText: "Создай первую цель" },
-  { id: "deferred", label: "Отложенные", icon: Pause, color: "text-amber-500", emptyText: "Нет отложенных" },
-  { id: "completed", label: "Готово", icon: Check, color: "text-green-500", emptyText: "Пока ничего не завершено" },
+  { id: "deferred", label: "План", icon: Pause, color: "text-amber-500", emptyText: "Добавь задачи в план" },
+  { id: "active", label: "В работе", icon: Clock, color: "text-blue-500", emptyText: "Нет активных задач" },
+  { id: "completed", label: "Завершённые", icon: Check, color: "text-green-500", emptyText: "Пока ничего не завершено" },
   { id: "cancelled", label: "Архив", icon: Archive, color: "text-muted-foreground", emptyText: "Архив пуст" },
 ];
 
@@ -63,7 +63,7 @@ export default function GoalsPage() {
   const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
   const [filterCategory, setFilterCategory] = useState<string>("all");
   // Mobile: show one column at a time
-  const [activeTab, setActiveTab] = useState<ColumnId>("active");
+  const [activeTab, setActiveTab] = useState<ColumnId>("deferred");
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -530,7 +530,7 @@ function GoalDialog({
         setCategoryId("none");
         setParentGoalId("none");
         setTargetDate("");
-        setStatus("active");
+        setStatus("deferred");
       }
     }
   }, [open, goal]);

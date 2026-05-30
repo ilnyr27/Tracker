@@ -79,7 +79,7 @@ export default function SheetsPage() {
       });
   }, [activeTabId]);
 
-  async function createTab(name: string, tabType: CustomTab["tab_type"]) {
+  async function createTab(name: string, tabType: CustomTab["tab_type"], schema?: Record<string, unknown>) {
     const supabase = createClient();
     const { data: userData } = await supabase.auth.getUser();
     if (!userData.user) return;
@@ -90,6 +90,7 @@ export default function SheetsPage() {
         user_id: userData.user.id,
         name,
         tab_type: tabType,
+        schema: schema ? { columns: schema.columns } : null,
         sort_order: tabs.length,
       })
       .select()
@@ -98,6 +99,25 @@ export default function SheetsPage() {
     if (data) {
       setTabs((prev) => [...prev, data]);
       setActiveTabId(data.id);
+
+      // Pre-populate rows for table type
+      if (tabType === "table" && schema?.columns && schema?.initialRows) {
+        const columns = schema.columns as string[];
+        const rowCount = schema.initialRows as number;
+        const rows = Array.from({ length: rowCount }, (_, i) => ({
+          tab_id: data.id,
+          user_id: userData.user!.id,
+          data: Object.fromEntries(columns.map((col) => [col, ""])),
+          sort_order: i,
+        }));
+
+        const { data: insertedRows } = await supabase
+          .from("tab_entries")
+          .insert(rows)
+          .select();
+
+        if (insertedRows) setEntries(insertedRows);
+      }
     }
   }
 
@@ -503,17 +523,39 @@ function CreateTabDialog({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onCreate: (name: string, type: CustomTab["tab_type"]) => void;
+  onCreate: (name: string, type: CustomTab["tab_type"], schema?: Record<string, unknown>) => void;
 }) {
   const [name, setName] = useState("");
   const [type, setType] = useState<CustomTab["tab_type"]>("list");
+  const [colCount, setColCount] = useState(3);
+  const [rowCount, setRowCount] = useState(5);
+  const [colNames, setColNames] = useState<string[]>(["Название", "Значение", "Заметка"]);
+
+  function updateColCount(n: number) {
+    setColCount(n);
+    setColNames((prev) => {
+      const next = [...prev];
+      while (next.length < n) next.push(`Столбец ${next.length + 1}`);
+      return next.slice(0, n);
+    });
+  }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!name.trim()) return;
-    onCreate(name.trim(), type);
+
+    if (type === "table") {
+      const schema = { columns: colNames, initialRows: rowCount };
+      onCreate(name.trim(), type, schema);
+    } else {
+      onCreate(name.trim(), type);
+    }
+
     setName("");
     setType("list");
+    setColCount(3);
+    setRowCount(5);
+    setColNames(["Название", "Значение", "Заметка"]);
     onOpenChange(false);
   }
 
@@ -565,6 +607,71 @@ function CreateTabDialog({
               })}
             </div>
           </div>
+
+          {/* Table config: columns + rows */}
+          {type === "table" && (
+            <div className="space-y-3 rounded-xl border border-border/30 p-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Столбцов</label>
+                  <div className="flex items-center gap-1">
+                    {[2, 3, 4, 5, 6].map((n) => (
+                      <button
+                        key={n}
+                        type="button"
+                        onClick={() => updateColCount(n)}
+                        className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all ${
+                          colCount === n
+                            ? "bg-primary/10 text-primary border border-primary/30"
+                            : "border border-border/30 text-muted-foreground"
+                        }`}
+                      >
+                        {n}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Строк</label>
+                  <div className="flex items-center gap-1">
+                    {[3, 5, 10, 15, 20].map((n) => (
+                      <button
+                        key={n}
+                        type="button"
+                        onClick={() => setRowCount(n)}
+                        className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all ${
+                          rowCount === n
+                            ? "bg-primary/10 text-primary border border-primary/30"
+                            : "border border-border/30 text-muted-foreground"
+                        }`}
+                      >
+                        {n}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs text-muted-foreground mb-1.5 block">Названия столбцов</label>
+                <div className="space-y-1.5">
+                  {colNames.map((col, i) => (
+                    <Input
+                      key={i}
+                      value={col}
+                      onChange={(e) => {
+                        const next = [...colNames];
+                        next[i] = e.target.value;
+                        setColNames(next);
+                      }}
+                      placeholder={`Столбец ${i + 1}`}
+                      className="h-8 text-xs bg-input/50 border-border/50"
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="flex gap-2 pt-2">
             <Button

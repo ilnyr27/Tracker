@@ -17,37 +17,15 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { motion, AnimatePresence } from "motion/react";
-import { useTheme } from "next-themes";
-import Image from "next/image";
 import type { Goal, Category, Task } from "@/lib/supabase/types";
 
-// Category icon → PNG file mapping (light = gold, dark = purple/blue)
-const CATEGORY_ICONS: Record<string, { light: string; dark: string }> = {
-  "heart-pulse": { light: "/cat-icons/health-light.png", dark: "/cat-icons/health-dark.png" },
-  home: { light: "/cat-icons/home-light.png", dark: "/cat-icons/home-dark.png" },
-  "trending-up": { light: "/cat-icons/invest-light.png", dark: "/cat-icons/invest-dark.png" },
-  briefcase: { light: "/cat-icons/work-light.png", dark: "/cat-icons/work-dark.png" },
-  users: { light: "/cat-icons/family-light.png", dark: "/cat-icons/family-dark.png" },
-  "message-circle": { light: "/cat-icons/friends-light.png", dark: "/cat-icons/friends-dark.png" },
-  smile: { light: "/cat-icons/rest-light.png", dark: "/cat-icons/rest-dark.png" },
-  "graduation-cap": { light: "/cat-icons/education-light.png", dark: "/cat-icons/education-dark.png" },
-  moon: { light: "/cat-icons/islam-light.png", dark: "/cat-icons/islam-dark.png" },
-  palette: { light: "/cat-icons/creativity-light.png", dark: "/cat-icons/creativity-dark.png" },
-};
-
-// Short descriptions for categories
-const CATEGORY_DESC: Record<string, string> = {
-  "heart-pulse": "Физическое и ментальное",
-  home: "Уют и порядок",
-  "trending-up": "Деньги и инвестиции",
-  briefcase: "Профессиональное развитие",
-  users: "Отношения и поддержка",
-  "message-circle": "Общение и окружение",
-  smile: "Восстановление и баланс",
-  "graduation-cap": "Знания и навыки",
-  moon: "Духовный рост и практика",
-  palette: "Творческая реализация",
-};
+// Emoji choices for category picker
+const EMOJI_OPTIONS = [
+  "❤️", "🏠", "💰", "💼", "👨‍👩‍👧", "👥", "🌴", "📚",
+  "🕌", "🎨", "🏋️", "🧘", "🎯", "🚀", "💡", "🎵",
+  "🍎", "🌍", "✈️", "📝", "🔬", "🎮", "🐾", "☕",
+  "🌟", "🧠", "💪", "🏆", "📸", "🎓", "🌱", "⚡",
+];
 
 const container = {
   hidden: { opacity: 0 },
@@ -60,7 +38,6 @@ const item = {
 };
 
 export default function MainPage() {
-  const { resolvedTheme } = useTheme();
   const [categories, setCategories] = useState<Category[]>([]);
   const [goals, setGoals] = useState<Goal[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -70,8 +47,8 @@ export default function MainPage() {
   const [addCatOpen, setAddCatOpen] = useState(false);
   const [newCatName, setNewCatName] = useState("");
   const [newCatColor, setNewCatColor] = useState("#6366f1");
+  const [newCatEmoji, setNewCatEmoji] = useState("🎯");
   const [savingCat, setSavingCat] = useState(false);
-  const isDark = resolvedTheme === "dark";
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -158,6 +135,7 @@ export default function MainPage() {
     await supabase.from("categories").insert({
       user_id: userData.user.id,
       name: newCatName.trim(),
+      icon: newCatEmoji,
       color: newCatColor,
       sort_order: categories.length,
       is_active: true,
@@ -166,6 +144,7 @@ export default function MainPage() {
     setSavingCat(false);
     setAddCatOpen(false);
     setNewCatName("");
+    setNewCatEmoji("🎯");
     loadData();
   }
 
@@ -211,11 +190,7 @@ export default function MainPage() {
             {categories.map((cat) => {
               const catGoals = goalsByCategory.get(cat.id) || [];
               const percent = getCategoryPercent(cat.id);
-              const iconPaths = CATEGORY_ICONS[cat.icon || ""];
-              const iconSrc = iconPaths
-                ? (isDark ? iconPaths.dark : iconPaths.light)
-                : null;
-              const desc = CATEGORY_DESC[cat.icon || ""] || "";
+              const emoji = cat.icon || cat.name.charAt(0);
               const goalsCount = catGoals.length;
 
               return (
@@ -227,26 +202,14 @@ export default function MainPage() {
                   className="relative rounded-3xl border border-border/40 bg-card p-5 flex flex-col items-start text-left gap-3 hover:shadow-lg hover:border-border/60 transition-all min-h-[160px]"
                   aria-label={`${cat.name} — ${percent}%`}
                 >
-                  {/* Icon + Percent row */}
+                  {/* Emoji + Percent row */}
                   <div className="flex items-center justify-between w-full">
-                    {iconSrc ? (
-                      <div className="h-14 w-14 rounded-2xl overflow-hidden">
-                        <Image
-                          src={iconSrc}
-                          alt={cat.name}
-                          width={56}
-                          height={56}
-                          className="object-contain"
-                        />
-                      </div>
-                    ) : (
-                      <div
-                        className="flex h-14 w-14 items-center justify-center rounded-2xl text-2xl"
-                        style={{ backgroundColor: `${cat.color}15` }}
-                      >
-                        {cat.name.charAt(0)}
-                      </div>
-                    )}
+                    <div
+                      className="flex h-14 w-14 items-center justify-center rounded-2xl text-3xl"
+                      style={{ backgroundColor: `${cat.color || "var(--primary)"}15` }}
+                    >
+                      {emoji}
+                    </div>
                     <span
                       className="text-xl font-bold tabular-nums"
                       style={{ color: cat.color || "var(--primary)" }}
@@ -255,13 +218,10 @@ export default function MainPage() {
                     </span>
                   </div>
 
-                  {/* Name + Description */}
+                  {/* Name */}
                   <div className="space-y-1">
                     <span className="text-base font-semibold leading-snug line-clamp-1 block">
                       {cat.name}
-                    </span>
-                    <span className="text-sm text-muted-foreground leading-snug line-clamp-1 block">
-                      {desc}
                     </span>
                   </div>
 
@@ -337,6 +297,25 @@ export default function MainPage() {
               className="h-12 bg-input/50 border-border/50 text-base"
             />
             <div>
+              <label className="text-xs text-muted-foreground mb-2 block">Иконка</label>
+              <div className="grid grid-cols-8 gap-1.5 max-h-[160px] overflow-y-auto">
+                {EMOJI_OPTIONS.map((e) => (
+                  <button
+                    key={e}
+                    type="button"
+                    onClick={() => setNewCatEmoji(e)}
+                    className={`h-10 w-10 rounded-xl text-xl flex items-center justify-center transition-all ${
+                      newCatEmoji === e
+                        ? "bg-primary/15 ring-2 ring-primary/40 scale-110"
+                        : "hover:bg-accent/50"
+                    }`}
+                  >
+                    {e}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
               <label className="text-xs text-muted-foreground mb-2 block">Цвет</label>
               <div className="flex gap-3 flex-wrap">
                 {["#6366f1", "#3b82f6", "#14b8a6", "#22c55e", "#f59e0b", "#ef4444", "#ec4899", "#8b5cf6"].map((c) => (
@@ -390,8 +369,6 @@ function CategoryGoalsDialog({
   goalsByCategory: Map<string, Goal[]>;
   onDataChanged: () => void;
 }) {
-  const { resolvedTheme } = useTheme();
-  const isDark = resolvedTheme === "dark";
   const [addMode, setAddMode] = useState(false);
   const [title, setTitle] = useState("");
   const [trackingType, setTrackingType] = useState<"habit" | "milestone">("habit");
@@ -453,16 +430,11 @@ function CategoryGoalsDialog({
       <DialogContent className="sm:max-w-lg bg-card border-border/50">
         <DialogHeader>
           <DialogTitle className="text-lg flex items-center gap-3">
-            {cat && (() => {
-              const iconP = CATEGORY_ICONS[cat.icon || ""];
-              return iconP ? (
-                <Image src={isDark ? iconP.dark : iconP.light} alt={cat.name} width={40} height={40} className="rounded-xl" />
-              ) : (
-                <div className="h-10 w-10 rounded-xl flex items-center justify-center text-xl" style={{ backgroundColor: `${cat.color}15` }}>
-                  {cat.name.charAt(0)}
-                </div>
-              );
-            })()}
+            {cat && (
+              <div className="h-10 w-10 rounded-xl flex items-center justify-center text-2xl" style={{ backgroundColor: `${cat.color || "var(--primary)"}15` }}>
+                {cat.icon || cat.name.charAt(0)}
+              </div>
+            )}
             <span style={{ color: cat?.color || undefined }}>{cat?.name || "Цели"}</span>
           </DialogTitle>
         </DialogHeader>

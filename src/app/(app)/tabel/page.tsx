@@ -28,32 +28,6 @@ import { Button } from "@/components/ui/button";
 import { motion } from "motion/react";
 import type { Goal, Category, Task } from "@/lib/supabase/types";
 
-// Category emoji mapping
-const CATEGORY_EMOJI: Record<string, string> = {
-  "heart-pulse": "\u2764\ufe0f",
-  home: "\ud83c\udfe0",
-  "trending-up": "\ud83d\udcb0",
-  briefcase: "\ud83d\udcbc",
-  users: "\ud83d\udc68\u200d\ud83d\udc69\u200d\ud83d\udc67",
-  "message-circle": "\ud83d\udc65",
-  smile: "\ud83c\udf34",
-  "graduation-cap": "\ud83d\udcda",
-  moon: "\ud83c\udd4c",
-  palette: "\ud83c\udfa8",
-};
-
-const CATEGORY_DESC: Record<string, string> = {
-  "heart-pulse": "Физическое и ментальное",
-  home: "Уют и порядок",
-  "trending-up": "Деньги и инвестиции",
-  briefcase: "Профессиональное развитие",
-  users: "Отношения и поддержка",
-  "message-circle": "Общение и окружение",
-  smile: "Восстановление и баланс",
-  "graduation-cap": "Знания и навыки",
-  moon: "Духовный рост и практика",
-  palette: "Творческая реализация",
-};
 
 type ViewMode = "week" | "month";
 
@@ -322,8 +296,7 @@ export default function MatrixPage() {
             <tbody>
               {activeCats.map((cat) => {
                 const catGoals = goalsByCategory.get(cat.id) || [];
-                const emoji = CATEGORY_EMOJI[cat.icon || ""] || "\ud83d\udccc";
-                const desc = CATEGORY_DESC[cat.icon || ""] || "";
+                const emoji = cat.icon || cat.name.charAt(0);
 
                 return catGoals.map((goal, goalIdx) => (
                   <tr
@@ -345,7 +318,7 @@ export default function MatrixPage() {
                           </div>
                           {goalIdx === 0 && (
                             <div className="text-[9px] text-muted-foreground/40 truncate">
-                              {desc}
+                              {cat.name}
                             </div>
                           )}
                         </div>
@@ -416,6 +389,142 @@ export default function MatrixPage() {
           </div>
         </div>
       )}
+
+      {/* Category progress charts */}
+      {!loading && activeCats.length > 0 && (
+        <CategoryCharts
+          categories={activeCats}
+          goalsByCategory={goalsByCategory}
+          tasks={tasks}
+          days={days}
+        />
+      )}
     </div>
+  );
+}
+
+// ── Category Charts — progress bars + daily trend ──
+function CategoryCharts({
+  categories,
+  goalsByCategory,
+  tasks,
+  days,
+}: {
+  categories: Category[];
+  goalsByCategory: Map<string, Goal[]>;
+  tasks: Task[];
+  days: Date[];
+}) {
+  // Calculate per-category completion rate for the current period
+  const catStats = categories.map((cat) => {
+    const catGoals = goalsByCategory.get(cat.id) || [];
+    const goalIds = new Set(catGoals.map((g) => g.id));
+    const catTasks = tasks.filter((t) => t.goal_id && goalIds.has(t.goal_id));
+    const done = catTasks.filter((t) => t.is_done).length;
+    const total = catGoals.length * days.length; // max possible
+    const actual = catTasks.length;
+    const percent = actual > 0 ? Math.round((done / actual) * 100) : 0;
+
+    // Daily trend: completion rate per day
+    const dailyRates = days.map((day) => {
+      const ds = format(day, "yyyy-MM-dd");
+      const dayTasks = catTasks.filter((t) => t.scheduled_date === ds);
+      const dayDone = dayTasks.filter((t) => t.is_done).length;
+      return dayTasks.length > 0 ? Math.round((dayDone / dayTasks.length) * 100) : -1;
+    });
+
+    // Trend: compare last half vs first half
+    const validRates = dailyRates.filter((r) => r >= 0);
+    const mid = Math.floor(validRates.length / 2);
+    const firstHalf = validRates.slice(0, mid);
+    const secondHalf = validRates.slice(mid);
+    const avgFirst = firstHalf.length > 0 ? firstHalf.reduce((a, b) => a + b, 0) / firstHalf.length : 0;
+    const avgSecond = secondHalf.length > 0 ? secondHalf.reduce((a, b) => a + b, 0) / secondHalf.length : 0;
+    const trend = avgSecond - avgFirst; // positive = growth
+
+    return { cat, percent, done, actual, dailyRates, trend };
+  });
+
+  const maxPercent = Math.max(...catStats.map((s) => s.percent), 1);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.2 }}
+      className="mt-6 rounded-2xl border border-border/30 bg-card p-4"
+    >
+      <h3 className="text-sm font-semibold mb-4">Прогресс по категориям</h3>
+      <div className="space-y-4">
+        {catStats.map(({ cat, percent, done, actual, dailyRates, trend }) => {
+          const emoji = cat.icon || cat.name.charAt(0);
+
+          return (
+            <div key={cat.id}>
+              {/* Category header row */}
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className="text-lg">{emoji}</span>
+                <span className="text-xs font-medium flex-1 truncate">{cat.name}</span>
+                <span className="text-xs tabular-nums text-muted-foreground">
+                  {done}/{actual}
+                </span>
+                <span
+                  className="text-xs font-semibold tabular-nums"
+                  style={{ color: cat.color || "var(--primary)" }}
+                >
+                  {percent}%
+                </span>
+                {/* Trend arrow */}
+                {actual > 0 && (
+                  <span className={`text-xs font-medium ${trend > 5 ? "text-emerald-500" : trend < -5 ? "text-red-400" : "text-muted-foreground/40"}`}>
+                    {trend > 5 ? "↑" : trend < -5 ? "↓" : "→"}
+                  </span>
+                )}
+              </div>
+
+              {/* Progress bar */}
+              <div className="h-2 w-full rounded-full bg-muted overflow-hidden mb-2">
+                <motion.div
+                  className="h-full rounded-full"
+                  style={{ backgroundColor: cat.color || "var(--primary)" }}
+                  initial={{ width: 0 }}
+                  animate={{ width: `${percent}%` }}
+                  transition={{ duration: 0.6 }}
+                />
+              </div>
+
+              {/* Mini daily sparkline */}
+              <div className="flex gap-px items-end h-5">
+                {dailyRates.map((rate, i) => (
+                  <div
+                    key={i}
+                    className="flex-1 rounded-sm min-w-[2px]"
+                    style={{
+                      height: rate >= 0 ? `${Math.max(rate * 0.2, 2)}px` : "2px",
+                      backgroundColor:
+                        rate < 0
+                          ? "var(--muted)"
+                          : rate === 100
+                            ? "oklch(0.55 0.2 145)"
+                            : rate >= 50
+                              ? (cat.color || "var(--primary)")
+                              : "oklch(0.65 0.18 25)",
+                      opacity: rate < 0 ? 0.3 : 0.8,
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Trend legend */}
+      <div className="flex items-center justify-center gap-4 mt-4 text-[10px] text-muted-foreground/50">
+        <span className="text-emerald-500">↑ Рост</span>
+        <span className="text-muted-foreground/40">→ Стабильно</span>
+        <span className="text-red-400">↓ Спад</span>
+      </div>
+    </motion.div>
   );
 }

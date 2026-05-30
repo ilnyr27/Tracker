@@ -25,10 +25,17 @@ import {
   Flame,
   Trophy,
   TrendingUp,
+  Check,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "motion/react";
-import { useRouter } from "next/navigation";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import type { Task, Category } from "@/lib/supabase/types";
 
 type DayStats = {
@@ -48,12 +55,12 @@ function getProgressColor(percent: number): string {
 }
 
 export default function CalendarPage() {
-  const router = useRouter();
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [tasks, setTasks] = useState<Task[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [direction, setDirection] = useState(0);
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
 
   const monthStart = startOfMonth(currentMonth);
   const monthEnd = endOfMonth(currentMonth);
@@ -125,8 +132,7 @@ export default function CalendarPage() {
   }, [tasks, categories]);
 
   function handleDayClick(day: Date) {
-    const dateStr = format(day, "yyyy-MM-dd");
-    router.push(`/today?date=${dateStr}`);
+    setSelectedDate(day);
   }
 
   function goToPrevMonth() {
@@ -338,7 +344,119 @@ export default function CalendarPage() {
           <CategoryBreakdown tasks={tasks} categories={categories} monthStart={monthStart} monthEnd={monthEnd} />
         </>
       )}
+
+      {/* Day detail dialog */}
+      <DayDetailDialog
+        date={selectedDate}
+        onClose={() => setSelectedDate(null)}
+        tasks={tasks}
+        categories={categories}
+      />
     </div>
+  );
+}
+
+// ── Day Detail Dialog ──
+function DayDetailDialog({
+  date,
+  onClose,
+  tasks,
+  categories,
+}: {
+  date: Date | null;
+  onClose: () => void;
+  tasks: Task[];
+  categories: Category[];
+}) {
+  if (!date) return null;
+
+  const dateStr = format(date, "yyyy-MM-dd");
+  const dayTasks = tasks.filter((t) => t.scheduled_date === dateStr);
+  const catMap = new Map(categories.map((c) => [c.id, c]));
+  const doneTasks = dayTasks.filter((t) => t.is_done);
+  const pendingTasks = dayTasks.filter((t) => !t.is_done);
+
+  return (
+    <Dialog open={!!date} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-md bg-card border-border/50">
+        <DialogHeader>
+          <DialogTitle className="text-lg">
+            {format(date, "d MMMM, EEEE", { locale: ru })}
+          </DialogTitle>
+        </DialogHeader>
+
+        {dayTasks.length === 0 ? (
+          <div className="py-8 text-center">
+            <CalendarDays className="h-10 w-10 mx-auto text-muted-foreground/20 mb-2" />
+            <p className="text-sm text-muted-foreground/50">Нет задач за этот день</p>
+          </div>
+        ) : (
+          <div className="space-y-4 max-h-[60vh] overflow-y-auto">
+            {/* Summary */}
+            <div className="flex items-center gap-3 text-sm">
+              <span className="text-emerald-500 font-medium">
+                ✓ {doneTasks.length} выполнено
+              </span>
+              {pendingTasks.length > 0 && (
+                <span className="text-muted-foreground">
+                  ○ {pendingTasks.length} не выполнено
+                </span>
+              )}
+            </div>
+
+            {/* Done tasks */}
+            {doneTasks.length > 0 && (
+              <div>
+                <h4 className="text-xs font-medium text-muted-foreground mb-2">Выполнено</h4>
+                <div className="space-y-1.5">
+                  {doneTasks.map((task) => {
+                    const cat = task.category_id ? catMap.get(task.category_id) : null;
+                    return (
+                      <div key={task.id} className="flex items-center gap-2 px-3 py-2 rounded-xl bg-emerald-500/5">
+                        <div className="h-5 w-5 rounded-md bg-emerald-500/15 flex items-center justify-center shrink-0">
+                          <Check className="h-3 w-3 text-emerald-500" strokeWidth={3} />
+                        </div>
+                        <span className="text-sm flex-1 truncate">{task.title}</span>
+                        {cat && (
+                          <span className="text-xs text-muted-foreground/50 shrink-0">
+                            {cat.icon || cat.name.charAt(0)}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Pending tasks */}
+            {pendingTasks.length > 0 && (
+              <div>
+                <h4 className="text-xs font-medium text-muted-foreground mb-2">Не выполнено</h4>
+                <div className="space-y-1.5">
+                  {pendingTasks.map((task) => {
+                    const cat = task.category_id ? catMap.get(task.category_id) : null;
+                    return (
+                      <div key={task.id} className="flex items-center gap-2 px-3 py-2 rounded-xl bg-red-500/5">
+                        <div className="h-5 w-5 rounded-md bg-red-500/10 flex items-center justify-center shrink-0">
+                          <X className="h-3 w-3 text-red-400/70" strokeWidth={2.5} />
+                        </div>
+                        <span className="text-sm flex-1 truncate text-muted-foreground/70">{task.title}</span>
+                        {cat && (
+                          <span className="text-xs text-muted-foreground/50 shrink-0">
+                            {cat.icon || cat.name.charAt(0)}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
 
