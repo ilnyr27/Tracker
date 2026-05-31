@@ -36,7 +36,8 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion } from "motion/react";
-import type { Goal, Category, Task } from "@/lib/supabase/types";
+import type { Goal, Category, Task, TaskTemplate } from "@/lib/supabase/types";
+import { matchesDate } from "@/lib/recurrence";
 
 const ICON_TO_EMOJI: Record<string, string> = {
   "heart-pulse": "❤️", home: "🏠", "trending-up": "💰", briefcase: "💼",
@@ -78,6 +79,7 @@ export default function MatrixPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [goals, setGoals] = useState<Goal[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [templates, setTemplates] = useState<TaskTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [chartType, setChartType] = useState<ChartType>("radar");
 
@@ -127,6 +129,17 @@ export default function MatrixPage() {
     if (catRes.data) setCategories(catRes.data);
     if (goalsRes.data) setGoals(goalsRes.data);
     if (tasksRes.data) setTasks(tasksRes.data);
+
+    // Load templates separately — table may not exist if migration 002 not applied
+    try {
+      const { data: tmplData } = await supabase
+        .from("task_templates")
+        .select("*")
+        .eq("is_active", true);
+      if (tmplData) setTemplates(tmplData);
+    } catch {
+      // task_templates table may not exist yet
+    }
     setLoading(false);
   }, [startStr, endStr]);
 
@@ -140,6 +153,18 @@ export default function MatrixPage() {
     if (task.goal_id && task.scheduled_date) {
       taskMap.set(`${task.goal_id}__${task.scheduled_date}`, task);
     }
+  }
+
+  // Template lookup by goal_id
+  const templateByGoal = new Map<string, TaskTemplate>();
+  for (const tmpl of templates) {
+    if (tmpl.goal_id) templateByGoal.set(tmpl.goal_id, tmpl);
+  }
+
+  function isScheduledDay(goalId: string, date: Date): boolean {
+    const tmpl = templateByGoal.get(goalId);
+    if (!tmpl) return true; // no template = daily goal
+    return matchesDate(tmpl, date);
   }
 
   // Group goals by category
@@ -236,7 +261,7 @@ export default function MatrixPage() {
     ? format(currentDate, "yyyy")
     : format(currentDate, "LLL yyyy", { locale: ru });
 
-  // Legend counts
+  // Legend counts — only count scheduled days
   let legendDone = 0;
   let legendMissed = 0;
   let legendEmpty = 0;
@@ -245,18 +270,20 @@ export default function MatrixPage() {
     for (const goal of catGoals) {
       const goalStart = startOfDay(parseISO(goal.created_at));
       for (const day of days) {
-        if (isBefore(day, goalStart)) continue; // skip days before goal was created
+        if (isBefore(day, goalStart)) continue;
         const ds = format(day, "yyyy-MM-dd");
         const task = taskMap.get(`${goal.id}__${ds}`);
         const past = isBefore(day, new Date()) && !isToday(day);
+        const scheduled = isScheduledDay(goal.id, day);
         if (task?.is_done) legendDone++;
-        else if (past) legendMissed++;
-        else legendEmpty++;
+        else if (past && scheduled) legendMissed++;
+        else if (scheduled) legendEmpty++;
+        // unscheduled days are not counted in stats
       }
     }
   }
 
-  // Category stats for charts
+  // Category stats for charts — only scheduled days
   const catStats: CatStat[] = useMemo(() => {
     return activeCats.map((cat) => {
       const catGoals = goalsByCategory.get(cat.id) || [];
@@ -265,7 +292,8 @@ export default function MatrixPage() {
       for (const goal of catGoals) {
         const goalStart = startOfDay(parseISO(goal.created_at));
         for (const day of days) {
-          if (isBefore(day, goalStart)) continue; // skip days before goal was created
+          if (isBefore(day, goalStart)) continue;
+          if (!isScheduledDay(goal.id, day)) continue; // skip unscheduled
           const ds = format(day, "yyyy-MM-dd");
           const past = isBefore(day, new Date()) || isToday(day);
           if (!past) continue;
@@ -282,7 +310,8 @@ export default function MatrixPage() {
         pct: total > 0 ? Math.round((done / total) * 100) : 0,
       };
     });
-  }, [activeCats, goalsByCategory, days, taskMap]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeCats, goalsByCategory, days, taskMap, templates]);
 
   return (
     <div className="p-4 pb-24 md:pb-4">
@@ -434,7 +463,7 @@ export default function MatrixPage() {
                       </div>
                     </td>
 
-                    {/* Day cells — green check / red X / empty */}
+                    {/* Day cells — green check / red X / empty / faint (unscheduled) */}
                     {days.map((day) => {
                       const dateStr = format(day, "yyyy-MM-dd");
                       const key = `${goal.id}__${dateStr}`;
@@ -444,6 +473,7 @@ export default function MatrixPage() {
                       const isDone = task?.is_done === true;
                       const goalStart = startOfDay(parseISO(goal.created_at));
                       const beforeGoal = isBefore(day, goalStart);
+                      const scheduled = isScheduledDay(goal.id, day);
 
                       const isYearView = baseMode === "year";
                       return (
@@ -463,6 +493,7 @@ export default function MatrixPage() {
                               title={format(day, "d MMMM", { locale: ru })}
                             >
                               {isDone ? (
+                                /* Done — green */
                                 isYearView ? (
                                   <div className="h-2.5 w-2.5 rounded-sm bg-emerald-500" />
                                 ) : (
@@ -470,7 +501,8 @@ export default function MatrixPage() {
                                     <Check className="h-3.5 w-3.5 text-emerald-500" strokeWidth={3} />
                                   </div>
                                 )
-                              ) : isPast ? (
+                              ) : isPast && scheduled ? (
+                                /* Missed scheduled day — red */
                                 isYearView ? (
                                   <div className="h-2.5 w-2.5 rounded-sm bg-red-400/40" />
                                 ) : (
@@ -478,7 +510,15 @@ export default function MatrixPage() {
                                     <X className="h-3 w-3 text-red-400/70" strokeWidth={2.5} />
                                   </div>
                                 )
+                              ) : !scheduled ? (
+                                /* Not scheduled — very faint, dashed border (clickable for transfers) */
+                                isYearView ? (
+                                  <div className="h-2.5 w-2.5 rounded-sm border border-dashed border-border/15" />
+                                ) : (
+                                  <div className="h-5 w-5 rounded-md border border-dashed border-border/20 bg-muted/10" />
+                                )
                               ) : (
+                                /* Scheduled future — normal gray */
                                 isYearView ? (
                                   <div className="h-2.5 w-2.5 rounded-sm border border-border/40 bg-muted/20" />
                                 ) : (

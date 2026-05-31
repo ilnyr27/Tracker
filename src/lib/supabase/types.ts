@@ -1,8 +1,10 @@
 export type RecurrenceRule = {
-  type: "nth_weekday" | "biweekly";
-  weekday?: number;      // 0=Sun..6=Sat
+  type: "nth_weekday" | "biweekly" | "weekly_custom";
+  weekday?: number;      // 0=Sun..6=Sat (for nth_weekday / biweekly)
   nth?: number;          // 1=first, 2=second, 3=third, 4=fourth, -1=last
   anchor_date?: string;  // ISO date string for biweekly calculation
+  weekdays?: number[];   // [1,3] = Mon, Wed (for weekly_custom)
+  weeks?: number[];      // [1,2] = weeks 1 & 2 of month (for weekly_custom)
 } | null;
 
 export type Category = {

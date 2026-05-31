@@ -24,7 +24,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { motion, AnimatePresence } from "motion/react";
-import type { Goal, Category, Task } from "@/lib/supabase/types";
+import type { Goal, Category, Task, TaskTemplate } from "@/lib/supabase/types";
+import { getRecurrenceLabel } from "@/lib/recurrence";
 
 // Custom grip icon: 2 dots top, line middle, 2 dots bottom
 function GripIcon({ className }: { className?: string }) {
@@ -39,13 +40,164 @@ function GripIcon({ className }: { className?: string }) {
   );
 }
 
-// Emoji choices for category picker
-const EMOJI_OPTIONS = [
-  "❤️", "🏠", "💰", "💼", "👨‍👩‍👧", "👥", "🌴", "📚",
-  "🕌", "🎨", "🏋️", "🧘", "🎯", "🚀", "💡", "🎵",
-  "🍎", "🌍", "✈️", "📝", "🔬", "🎮", "🐾", "☕",
-  "🌟", "🧠", "💪", "🏆", "📸", "🎓", "🌱", "⚡",
+// Emoji choices for category picker — organized by groups
+const EMOJI_GROUPS: { label: string; emojis: string[] }[] = [
+  {
+    label: "Популярные",
+    emojis: [
+      "❤️", "🏠", "💰", "💼", "👨‍👩‍👧", "👥", "🌴", "📚",
+      "🕌", "🎨", "🏋️", "🧘", "🎯", "🚀", "💡", "🎵",
+      "🍎", "🌍", "✈️", "📝", "🔬", "🎮", "🐾", "☕",
+      "🌟", "🧠", "💪", "🏆", "📸", "🎓", "🌱", "⚡",
+    ],
+  },
+  {
+    label: "Люди",
+    emojis: [
+      "😀", "😃", "😄", "😁", "😆", "😅", "🤣", "😂",
+      "🙂", "😉", "😊", "😇", "🥰", "😍", "🤩", "😘",
+      "😎", "🤓", "🧐", "🤔", "🤗", "🤭", "😏", "😌",
+      "😴", "🥳", "😤", "😈", "👶", "👦", "👧", "👨",
+      "👩", "👴", "👵", "🧑‍💻", "🧑‍🎨", "🧑‍🔬", "🧑‍🏫", "🧑‍⚕️",
+      "🙋", "🙇", "💁", "🤷", "🤦", "🧏", "👯", "🕺",
+      "💃", "👫", "👬", "👭", "💏", "👪", "🤝", "🫂",
+    ],
+  },
+  {
+    label: "Жесты",
+    emojis: [
+      "👋", "🤚", "✋", "🖐️", "👌", "🤌", "✌️", "🤞",
+      "🫰", "🤟", "🤘", "🤙", "👈", "👉", "👆", "👇",
+      "☝️", "👍", "👎", "✊", "👊", "🤛", "🤜", "👏",
+      "🙌", "🫶", "👐", "🤲", "🙏", "💅", "🫵", "🤏",
+    ],
+  },
+  {
+    label: "Природа",
+    emojis: [
+      "🐶", "🐱", "🐭", "🐹", "🐰", "🦊", "🐻", "🐼",
+      "🐨", "🐯", "🦁", "🐮", "🐷", "🐸", "🐵", "🐔",
+      "🐧", "🐦", "🦅", "🦆", "🦉", "🐴", "🦄", "🐝",
+      "🐛", "🦋", "🐌", "🐞", "🐢", "🐍", "🦎", "🐙",
+      "🐠", "🐬", "🐳", "🦈", "🐊", "🦩", "🦜", "🐾",
+      "🌸", "🌺", "🌻", "🌹", "🌷", "🌼", "💐", "🍀",
+      "🌿", "🌲", "🌳", "🌴", "🌵", "🍁", "🍂", "🍃",
+      "🌊", "🌈", "⭐", "🌙", "☀️", "🌤️", "⛅", "🔥",
+      "❄️", "💧", "🌪️", "🌋", "🏔️", "🌄", "🌅", "🌌",
+    ],
+  },
+  {
+    label: "Еда",
+    emojis: [
+      "🍎", "🍊", "🍋", "🍌", "🍉", "🍇", "🍓", "🫐",
+      "🍑", "🥑", "🍕", "🍔", "🍟", "🌭", "🥪", "🌮",
+      "🍣", "🍜", "🍝", "🍰", "🎂", "🧁", "🍩", "🍪",
+      "🍫", "🍬", "🍭", "🧇", "🥐", "🍞", "🥗", "🥘",
+      "☕", "🍵", "🧃", "🥤", "🍺", "🍷", "🥂", "🧋",
+    ],
+  },
+  {
+    label: "Спорт",
+    emojis: [
+      "⚽", "🏀", "🏈", "⚾", "🥎", "🎾", "🏐", "🏉",
+      "🥏", "🎱", "🏓", "🏸", "🏒", "🥊", "🥋", "⛳",
+      "⛷️", "🏂", "🏋️", "🤸", "🤺", "🏊", "🚴", "🧗",
+      "🤾", "🏄", "🏇", "🧘", "🎿", "🛹", "🏌️", "🤼",
+    ],
+  },
+  {
+    label: "Путешествия",
+    emojis: [
+      "🚗", "🚕", "🚌", "🚎", "🏎️", "🚓", "🚑", "🚒",
+      "✈️", "🚀", "🛸", "🚁", "⛵", "🚢", "🛥️", "🚂",
+      "🚆", "🚇", "🛺", "🏍️", "🚲", "🛴", "🛵", "🛶",
+      "⛺", "🏕️", "🗺️", "🧭", "🗼", "🗽", "🏰", "🏯",
+      "🕌", "⛪", "🕍", "🛕", "🏗️", "🏟️", "🎡", "🎢",
+    ],
+  },
+  {
+    label: "Предметы",
+    emojis: [
+      "📱", "💻", "⌨️", "🖥️", "🖨️", "📷", "📹", "🎥",
+      "📺", "🔭", "🔬", "🧪", "💊", "🩺", "🧬", "🔧",
+      "🔨", "⚙️", "🛠️", "📐", "📏", "✏️", "📝", "📒",
+      "📚", "📖", "🗂️", "📁", "📌", "📎", "✂️", "🗑️",
+      "💎", "💍", "👑", "🎀", "🎁", "🛍️", "👓", "🕶️",
+      "👕", "👗", "👔", "👟", "🧢", "🎩", "👜", "💄",
+    ],
+  },
+  {
+    label: "Символы",
+    emojis: [
+      "❤️", "🧡", "💛", "💚", "💙", "💜", "🖤", "🤍",
+      "🤎", "💔", "💕", "💞", "💓", "💗", "💖", "💘",
+      "💝", "💟", "☮️", "✝️", "☪️", "🕉️", "☯️", "✡️",
+      "🔯", "♈", "♉", "♊", "♋", "♌", "♍", "♎",
+      "♏", "♐", "♑", "♒", "♓", "⛎", "🔀", "🔁",
+      "▶️", "⏸️", "⏹️", "⏺️", "⏭️", "⏮️", "🔅", "🔆",
+      "📶", "🔔", "🔕", "🎶", "🎵", "🎼", "🏷️", "🔖",
+      "💯", "✅", "❌", "❗", "❓", "⭕", "🚫", "♻️",
+    ],
+  },
+  {
+    label: "Флаги",
+    emojis: [
+      "🏁", "🚩", "🏴", "🏳️", "🇷🇺", "🇺🇸", "🇬🇧", "🇩🇪",
+      "🇫🇷", "🇯🇵", "🇨🇳", "🇰🇷", "🇮🇹", "🇪🇸", "🇧🇷", "🇹🇷",
+    ],
+  },
 ];
+
+const EMOJI_OPTIONS = EMOJI_GROUPS.flatMap((g) => g.emojis);
+
+function EmojiPicker({ selected, onSelect }: { selected: string; onSelect: (e: string) => void }) {
+  const [activeGroup, setActiveGroup] = useState(0);
+  const [search, setSearch] = useState("");
+
+  const filtered = search
+    ? EMOJI_OPTIONS.filter((e) => e.includes(search))
+    : EMOJI_GROUPS[activeGroup].emojis;
+
+  return (
+    <div className="min-w-0">
+      <label className="text-xs text-muted-foreground mb-2 block">Иконка</label>
+      {/* Group tabs */}
+      <div className="flex gap-1 mb-2 overflow-x-auto pb-1 scrollbar-none -mx-1 px-1">
+        {EMOJI_GROUPS.map((g, i) => (
+          <button
+            key={g.label}
+            type="button"
+            onClick={() => { setActiveGroup(i); setSearch(""); }}
+            className={`px-1.5 py-1 text-[11px] rounded-md whitespace-nowrap transition-all shrink-0 ${
+              !search && activeGroup === i
+                ? "bg-primary/15 text-primary font-medium"
+                : "text-muted-foreground hover:bg-accent/50"
+            }`}
+          >
+            {g.emojis[0]} {g.label}
+          </button>
+        ))}
+      </div>
+      {/* Emoji grid */}
+      <div className="grid grid-cols-7 gap-0.5 max-h-[180px] overflow-y-auto rounded-xl border border-border/30 p-1.5 bg-accent/20">
+        {filtered.map((e, i) => (
+          <button
+            key={`${e}-${i}`}
+            type="button"
+            onClick={() => onSelect(e)}
+            className={`aspect-square rounded-lg text-lg flex items-center justify-center transition-all ${
+              selected === e
+                ? "bg-primary/15 ring-2 ring-primary/40 scale-110"
+                : "hover:bg-accent/50"
+            }`}
+          >
+            {e}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 // Fallback: old lucide icon names → emoji
 const ICON_TO_EMOJI: Record<string, string> = {
@@ -704,11 +856,11 @@ export default function MainPage() {
 
       {/* Add category dialog */}
       <Dialog open={addCatOpen} onOpenChange={setAddCatOpen}>
-        <DialogContent className="sm:max-w-md bg-card border-border/50">
+        <DialogContent className="sm:max-w-md bg-card border-border/50 max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-lg">Новая категория</DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleAddCategory} className="space-y-4">
+          <form onSubmit={handleAddCategory} className="space-y-4 min-w-0 overflow-hidden">
             <Input
               placeholder="Название категории"
               value={newCatName}
@@ -717,25 +869,7 @@ export default function MainPage() {
               autoFocus
               className="h-12 bg-input/50 border-border/50 text-base"
             />
-            <div>
-              <label className="text-xs text-muted-foreground mb-2 block">Иконка</label>
-              <div className="grid grid-cols-8 gap-1.5 max-h-[160px] overflow-y-auto">
-                {EMOJI_OPTIONS.map((e) => (
-                  <button
-                    key={e}
-                    type="button"
-                    onClick={() => setNewCatEmoji(e)}
-                    className={`h-10 w-10 rounded-xl text-xl flex items-center justify-center transition-all ${
-                      newCatEmoji === e
-                        ? "bg-primary/15 ring-2 ring-primary/40 scale-110"
-                        : "hover:bg-accent/50"
-                    }`}
-                  >
-                    {e}
-                  </button>
-                ))}
-              </div>
-            </div>
+            <EmojiPicker selected={newCatEmoji} onSelect={setNewCatEmoji} />
             <div>
               <label className="text-xs text-muted-foreground mb-2 block">Цвет</label>
               <div className="flex gap-3 flex-wrap">
@@ -777,7 +911,7 @@ function SwipeableGoalCard({
   editingGoalId, editTitle, confirmDeleteId,
   onEditStart, onEditChange, onEditSave, onEditCancel,
   onArchive, onDelete, onConfirmDeleteStart, onConfirmDeleteCancel,
-  onToggleMilestone, onTargetDaysChange,
+  onToggleMilestone, onTargetDaysChange, onEditFull,
 }: {
   goal: Goal;
   isHabit: boolean;
@@ -799,6 +933,7 @@ function SwipeableGoalCard({
   onConfirmDeleteCancel: () => void;
   onToggleMilestone: () => void;
   onTargetDaysChange: (days: number) => void;
+  onEditFull: () => void;
 }) {
   const [swipeX, setSwipeX] = useState(0);
   const [editingTarget, setEditingTarget] = useState(false);
@@ -911,7 +1046,7 @@ function SwipeableGoalCard({
           isInfinite ? (
             <div>
               <div className="flex items-center justify-between">
-                <span className="text-sm font-medium cursor-text" onClick={onEditStart}>{goal.title}</span>
+                <span className="text-sm font-medium cursor-pointer" onClick={onEditFull}>{goal.title}</span>
                 <div className="flex items-center gap-1.5">
                   <Flame className="h-4 w-4 text-orange-500" />
                   <span className="text-lg font-bold tabular-nums" style={{ color: cat?.color || "var(--primary)" }}>
@@ -944,7 +1079,7 @@ function SwipeableGoalCard({
           ) : (
             <div>
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium cursor-text" onClick={onEditStart}>{goal.title}</span>
+                <span className="text-sm font-medium cursor-pointer" onClick={onEditFull}>{goal.title}</span>
                 {editingTarget ? (
                   <div className="flex items-center gap-1">
                     <span className="text-sm text-muted-foreground tabular-nums">{done}/</span>
@@ -1009,7 +1144,7 @@ function SwipeableGoalCard({
             </div>
             <span
               className={`text-sm flex-1 ${goal.status === "completed" ? "line-through text-muted-foreground/50" : ""}`}
-              onClick={(e) => { e.stopPropagation(); e.preventDefault(); onEditStart(); }}
+              onClick={(e) => { e.stopPropagation(); e.preventDefault(); onEditFull(); }}
             >
               {goal.title}
             </span>
@@ -1020,7 +1155,7 @@ function SwipeableGoalCard({
         {!isEditing && (
           <div className="hidden md:flex items-center justify-center gap-1 mt-3 pt-2 border-t border-border/20">
             <button
-              onClick={onEditStart}
+              onClick={onEditFull}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg text-muted-foreground/60 hover:text-primary hover:bg-primary/10 transition-colors"
             >
               <Pencil className="h-3 w-3" /> Изменить
@@ -1079,11 +1214,14 @@ function CategoryGoalsDialog({
   const [title, setTitle] = useState("");
   const [trackingType, setTrackingType] = useState<"habit" | "milestone">("habit");
   const [targetDays, setTargetDays] = useState("30");
-  const [recurrenceMode, setRecurrenceMode] = useState<"daily" | "weekly" | "advanced">("daily");
+  const [recurrenceMode, setRecurrenceMode] = useState<"weekly" | "weekly_custom" | "monthly">("weekly");
   const [weekDays, setWeekDays] = useState<number[]>([]);
-  const [advancedType, setAdvancedType] = useState<"nth_weekday" | "biweekly">("nth_weekday");
+  const [advancedType, setAdvancedType] = useState<"nth_weekday" | "biweekly" | "weekly_custom">("nth_weekday");
   const [advancedWeekday, setAdvancedWeekday] = useState(1); // 1=Mon
   const [advancedNth, setAdvancedNth] = useState(1); // 1st occurrence
+  const [advancedWeekdays, setAdvancedWeekdays] = useState<number[]>([1]); // Mon
+  const [advancedWeeks, setAdvancedWeeks] = useState<number[]>([1, 2]); // weeks 1-2
+  const [monthDays, setMonthDays] = useState<number[]>([]); // e.g. [5, 15]
   const [reminderTime, setReminderTime] = useState("");
   const [reminderDate, setReminderDate] = useState("");
   const [saving, setSaving] = useState(false);
@@ -1094,6 +1232,7 @@ function CategoryGoalsDialog({
   const [editingGoalId, setEditingGoalId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [editFullGoalId, setEditFullGoalId] = useState<string | null>(null);
 
   useEffect(() => {
     if (open) {
@@ -1101,12 +1240,14 @@ function CategoryGoalsDialog({
       setTitle("");
       setTrackingType("habit");
       setTargetDays("30");
-      setRecurrenceMode("daily");
-      setWeekDays([]);
+      setRecurrenceMode("weekly");
+      setWeekDays([1, 2, 3, 4, 5, 6, 0]);
+      setMonthDays([]);
       setReminderTime("");
       setReminderDate("");
       setEditingGoalId(null);
       setConfirmDeleteId(null);
+      setEditFullGoalId(null);
     }
   }, [open]);
 
@@ -1168,42 +1309,33 @@ function CategoryGoalsDialog({
       return;
     }
 
-    // Create task template for non-daily recurrence
+    // Create task template for recurrence
     if (trackingType === "habit" && goalData) {
       try {
-        if (recurrenceMode === "weekly" && weekDays.length > 0) {
-          const tmplPayload: Record<string, unknown> = {
-            user_id: userData.user.id,
-            goal_id: goalData.id,
-            category_id: categoryId,
-            title: title.trim(),
-            recurrence: "weekly",
-            recurrence_days: weekDays,
-            sort_order: 0,
-          };
-          if (reminderTime) tmplPayload.reminder_time = reminderTime;
-          await supabase.from("task_templates").insert(tmplPayload);
-        } else if (recurrenceMode === "advanced") {
-          const tmplPayload: Record<string, unknown> = {
-            user_id: userData.user.id,
-            goal_id: goalData.id,
-            category_id: categoryId,
-            title: title.trim(),
+        const tmplBase: Record<string, unknown> = {
+          user_id: userData.user.id,
+          goal_id: goalData.id,
+          category_id: categoryId,
+          title: title.trim(),
+          sort_order: 0,
+        };
+        if (reminderTime) tmplBase.reminder_time = reminderTime;
+
+        if (recurrenceMode === "weekly" && weekDays.length > 0 && weekDays.length < 7) {
+          // All 7 days = daily → no template needed (no template = daily)
+          await supabase.from("task_templates").insert({ ...tmplBase, recurrence: "weekly", recurrence_days: weekDays });
+        } else if (recurrenceMode === "weekly_custom" && advancedWeekdays.length > 0 && advancedWeeks.length > 0) {
+          await supabase.from("task_templates").insert({
+            ...tmplBase,
             recurrence: "custom",
             recurrence_days: [],
-            sort_order: 0,
-          };
-          tmplPayload.recurrence_rule = {
-            type: advancedType,
-            weekday: advancedWeekday,
-            ...(advancedType === "nth_weekday" ? { nth: advancedNth } : {}),
-            ...(advancedType === "biweekly" ? { anchor_date: new Date().toISOString().slice(0, 10) } : {}),
-          };
-          if (reminderTime) tmplPayload.reminder_time = reminderTime;
-          await supabase.from("task_templates").insert(tmplPayload);
+            recurrence_rule: { type: "weekly_custom", weekdays: advancedWeekdays, weeks: advancedWeeks },
+          });
+        } else if (recurrenceMode === "monthly" && monthDays.length > 0) {
+          await supabase.from("task_templates").insert({ ...tmplBase, recurrence: "monthly", recurrence_days: monthDays });
         }
       } catch {
-        // Template creation may fail if migrations 004/005 not applied — goal still saved
+        // Template creation may fail if migrations not applied — goal still saved
       }
     }
 
@@ -1228,7 +1360,7 @@ function CategoryGoalsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg bg-card border-border/50">
+      <DialogContent className="sm:max-w-lg bg-card border-border/50 max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-lg flex items-center gap-3">
             {cat && (
@@ -1303,6 +1435,7 @@ function CategoryGoalsDialog({
                   await supabase.from("goals").update({ target_days: days }).eq("id", goal.id);
                   onDataChanged();
                 }}
+                onEditFull={() => setEditFullGoalId(goal.id)}
               />
             );
           })}
@@ -1349,9 +1482,9 @@ function CategoryGoalsDialog({
                 {/* Recurrence mode toggle */}
                 <div className="flex rounded-xl border border-border/50 overflow-hidden text-xs">
                   {([
-                    { mode: "daily" as const, label: "Каждый день" },
-                    { mode: "weekly" as const, label: "По дням" },
-                    { mode: "advanced" as const, label: "Расширенное" },
+                    { mode: "weekly" as const, label: "По дням недели" },
+                    { mode: "weekly_custom" as const, label: "По дням и неделям" },
+                    { mode: "monthly" as const, label: "По числам" },
                   ]).map(({ mode, label }) => (
                     <button
                       key={mode}
@@ -1366,10 +1499,26 @@ function CategoryGoalsDialog({
                   ))}
                 </div>
 
-                {/* Weekly day picker */}
+                {/* Mode 1: По дням недели — multi-select + "Вся неделя" */}
                 {recurrenceMode === "weekly" && (
                   <div>
-                    <label className="text-xs text-muted-foreground mb-1.5 block">В какие дни?</label>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="text-xs text-muted-foreground">В какие дни?</label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const all = [1, 2, 3, 4, 5, 6, 0];
+                          setWeekDays(weekDays.length === 7 ? [] : all);
+                        }}
+                        className={`text-[10px] px-2 py-0.5 rounded-md transition-all ${
+                          weekDays.length === 7
+                            ? "bg-primary/10 text-primary font-medium"
+                            : "text-muted-foreground hover:bg-accent/50"
+                        }`}
+                      >
+                        Вся неделя
+                      </button>
+                    </div>
                     <div className="flex gap-1.5">
                       {["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"].map((name, i) => {
                         const dayNum = i === 6 ? 0 : i + 1;
@@ -1392,44 +1541,42 @@ function CategoryGoalsDialog({
                   </div>
                 )}
 
-                {/* Advanced recurrence picker */}
-                {recurrenceMode === "advanced" && (
+                {/* Mode 2: По дням и неделям — weekdays + weeks of month */}
+                {recurrenceMode === "weekly_custom" && (
                   <div className="space-y-3">
-                    {/* Type selector */}
-                    <div className="flex rounded-xl border border-border/50 overflow-hidden text-xs">
-                      <button
-                        type="button"
-                        onClick={() => setAdvancedType("nth_weekday")}
-                        className={`flex-1 py-2 transition-colors ${
-                          advancedType === "nth_weekday" ? "bg-primary/10 text-primary font-medium" : "text-muted-foreground hover:bg-accent/50"
-                        }`}
-                      >
-                        N-й день месяца
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setAdvancedType("biweekly")}
-                        className={`flex-1 py-2 transition-colors ${
-                          advancedType === "biweekly" ? "bg-primary/10 text-primary font-medium" : "text-muted-foreground hover:bg-accent/50"
-                        }`}
-                      >
-                        Через неделю
-                      </button>
-                    </div>
-
-                    {/* Weekday selector */}
                     <div>
-                      <label className="text-xs text-muted-foreground mb-1.5 block">День недели</label>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="text-xs text-muted-foreground">Дни недели</label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const all = [1, 2, 3, 4, 5, 6, 0];
+                            setAdvancedWeekdays(advancedWeekdays.length === 7 ? [] : all);
+                          }}
+                          className={`text-[10px] px-2 py-0.5 rounded-md transition-all ${
+                            advancedWeekdays.length === 7
+                              ? "bg-primary/10 text-primary font-medium"
+                              : "text-muted-foreground hover:bg-accent/50"
+                          }`}
+                        >
+                          Все дни
+                        </button>
+                      </div>
                       <div className="flex gap-1.5">
                         {["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"].map((name, i) => {
                           const dayNum = i === 6 ? 0 : i + 1;
+                          const active = advancedWeekdays.includes(dayNum);
                           return (
                             <button
                               key={i}
                               type="button"
-                              onClick={() => setAdvancedWeekday(dayNum)}
+                              onClick={() => {
+                                setAdvancedWeekdays((prev) =>
+                                  active ? prev.filter((d) => d !== dayNum) : [...prev, dayNum]
+                                );
+                              }}
                               className={`flex-1 py-2 text-xs rounded-xl font-medium transition-all ${
-                                advancedWeekday === dayNum
+                                active
                                   ? "gradient-primary text-white"
                                   : "bg-muted text-muted-foreground hover:bg-accent"
                               }`}
@@ -1440,43 +1587,72 @@ function CategoryGoalsDialog({
                         })}
                       </div>
                     </div>
-
-                    {/* Nth occurrence (only for nth_weekday) */}
-                    {advancedType === "nth_weekday" && (
-                      <div>
-                        <label className="text-xs text-muted-foreground mb-1.5 block">Какой по счёту?</label>
-                        <div className="flex gap-1.5">
-                          {[
-                            { value: 1, label: "1-й" },
-                            { value: 2, label: "2-й" },
-                            { value: 3, label: "3-й" },
-                            { value: 4, label: "4-й" },
-                            { value: -1, label: "Послед." },
-                          ].map((opt) => (
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1.5 block">Недели месяца</label>
+                      <div className="flex gap-1.5">
+                        {[
+                          { value: 1, label: "1-я" },
+                          { value: 2, label: "2-я" },
+                          { value: 3, label: "3-я" },
+                          { value: 4, label: "4-я" },
+                          { value: 5, label: "5-я" },
+                        ].map((opt) => {
+                          const active = advancedWeeks.includes(opt.value);
+                          return (
                             <button
                               key={opt.value}
                               type="button"
-                              onClick={() => setAdvancedNth(opt.value)}
+                              onClick={() => {
+                                setAdvancedWeeks((prev) =>
+                                  active ? prev.filter((w) => w !== opt.value) : [...prev, opt.value]
+                                );
+                              }}
                               className={`flex-1 py-2 text-xs rounded-xl font-medium transition-all ${
-                                advancedNth === opt.value
+                                active
                                   ? "gradient-primary text-white"
                                   : "bg-muted text-muted-foreground hover:bg-accent"
                               }`}
                             >
                               {opt.label}
                             </button>
-                          ))}
-                        </div>
+                          );
+                        })}
                       </div>
-                    )}
-
-                    {/* Preview label */}
+                    </div>
                     <p className="text-[10px] text-muted-foreground/60 italic">
-                      {advancedType === "nth_weekday"
-                        ? `Каждую ${advancedNth === -1 ? "последнюю" : advancedNth + "-ю"} ${["воскресенье","понедельник","вторник","среду","четверг","пятницу","субботу"][advancedWeekday]} месяца`
-                        : `Через неделю: ${["Вс","Пн","Вт","Ср","Чт","Пт","Сб"][advancedWeekday]}`
-                      }
+                      Нед {advancedWeeks.sort((a,b)=>a-b).join(", ")}: {advancedWeekdays.sort((a,b)=>a-b).map((d)=>["Вс","Пн","Вт","Ср","Чт","Пт","Сб"][d]).join(", ")}
                     </p>
+                  </div>
+                )}
+
+                {/* Mode 3: По числам месяца — pick specific dates 1-31 */}
+                {recurrenceMode === "monthly" && (
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1.5 block">Какие числа?</label>
+                    <div className="grid grid-cols-7 gap-1">
+                      {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => {
+                        const active = monthDays.includes(d);
+                        return (
+                          <button
+                            key={d}
+                            type="button"
+                            onClick={() => setMonthDays((prev) => active ? prev.filter((x) => x !== d) : [...prev, d])}
+                            className={`py-1.5 text-xs rounded-lg font-medium transition-all ${
+                              active
+                                ? "gradient-primary text-white"
+                                : "bg-muted text-muted-foreground hover:bg-accent"
+                            }`}
+                          >
+                            {d}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {monthDays.length > 0 && (
+                      <p className="text-[10px] text-muted-foreground/60 italic mt-1.5">
+                        Каждый месяц: {monthDays.sort((a,b)=>a-b).join(", ")} число
+                      </p>
+                    )}
                   </div>
                 )}
 
@@ -1588,7 +1764,415 @@ function CategoryGoalsDialog({
           </Button>
         )}
       </DialogContent>
+
+      {/* Full edit dialog for a goal */}
+      {editFullGoalId && (
+        <EditGoalDialog
+          open={!!editFullGoalId}
+          onOpenChange={(v) => { if (!v) setEditFullGoalId(null); }}
+          goal={catGoals.find((g) => g.id === editFullGoalId)!}
+          categoryId={categoryId}
+          onDataChanged={() => { setEditFullGoalId(null); onDataChanged(); }}
+        />
+      )}
     </Dialog>
   );
 }
 
+// --- Edit Goal Dialog (full edit: name, schedule, target_days) ---
+
+function EditGoalDialog({
+  open,
+  onOpenChange,
+  goal,
+  categoryId,
+  onDataChanged,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  goal: Goal;
+  categoryId: string | null;
+  onDataChanged: () => void;
+}) {
+  const [title, setTitle] = useState(goal.title);
+  const [targetDays, setTargetDays] = useState(
+    goal.target_days && goal.target_days >= 99999 ? "∞" : String(goal.target_days || 30)
+  );
+  const [recurrenceMode, setRecurrenceMode] = useState<"weekly" | "weekly_custom" | "monthly">("weekly");
+  const [weekDays, setWeekDays] = useState<number[]>([1, 2, 3, 4, 5, 6, 0]);
+  const [advancedWeekdays, setAdvancedWeekdays] = useState<number[]>([1]);
+  const [advancedWeeks, setAdvancedWeeks] = useState<number[]>([1, 2]);
+  const [monthDays, setMonthDays] = useState<number[]>([]);
+  const [template, setTemplate] = useState<TaskTemplate | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    setTitle(goal.title);
+    setTargetDays(
+      goal.target_days && goal.target_days >= 99999 ? "∞" : String(goal.target_days || 30)
+    );
+    setLoading(true);
+
+    const supabase = createClient();
+    supabase
+      .from("task_templates")
+      .select("*")
+      .eq("goal_id", goal.id)
+      .eq("is_active", true)
+      .limit(1)
+      .then(({ data }) => {
+        const tmpl = data?.[0] as TaskTemplate | undefined;
+        setTemplate(tmpl || null);
+
+        if (tmpl) {
+          if (tmpl.recurrence === "weekly") {
+            setRecurrenceMode("weekly");
+            setWeekDays(tmpl.recurrence_days || []);
+          } else if (tmpl.recurrence === "custom" && tmpl.recurrence_rule?.type === "weekly_custom") {
+            setRecurrenceMode("weekly_custom");
+            setAdvancedWeekdays(tmpl.recurrence_rule.weekdays || [1]);
+            setAdvancedWeeks(tmpl.recurrence_rule.weeks || [1, 2]);
+          } else if (tmpl.recurrence === "monthly") {
+            setRecurrenceMode("monthly");
+            setMonthDays(tmpl.recurrence_days || []);
+          } else {
+            setRecurrenceMode("weekly");
+            setWeekDays([1, 2, 3, 4, 5, 6, 0]);
+          }
+        } else {
+          setRecurrenceMode("weekly");
+          setWeekDays([1, 2, 3, 4, 5, 6, 0]);
+        }
+        setLoading(false);
+      });
+  }, [open, goal.id, goal.title, goal.target_days]);
+
+  async function handleSave() {
+    if (!title.trim()) return;
+    setSaving(true);
+    const supabase = createClient();
+
+    const goalUpdate: Record<string, unknown> = { title: title.trim() };
+    if (goal.tracking_type === "habit") {
+      goalUpdate.target_days = targetDays === "∞" ? 99999 : parseInt(targetDays) || 30;
+    }
+    await supabase.from("goals").update(goalUpdate).eq("id", goal.id);
+
+    if (goal.tracking_type === "habit") {
+      try {
+        const { data: userData } = await supabase.auth.getUser();
+        if (!userData.user) { setSaving(false); return; }
+
+        const isDaily = recurrenceMode === "weekly" && weekDays.length >= 7;
+        const hasWeekly = recurrenceMode === "weekly" && weekDays.length > 0 && weekDays.length < 7;
+        const hasWeeklyCustom = recurrenceMode === "weekly_custom" && advancedWeekdays.length > 0 && advancedWeeks.length > 0;
+        const hasMonthly = recurrenceMode === "monthly" && monthDays.length > 0;
+
+        if (isDaily) {
+          if (template) {
+            await supabase.from("task_templates").delete().eq("id", template.id);
+          }
+        } else if (hasWeekly || hasWeeklyCustom || hasMonthly) {
+          const tmplData: Record<string, unknown> = { title: title.trim() };
+
+          if (hasWeekly) {
+            tmplData.recurrence = "weekly";
+            tmplData.recurrence_days = weekDays;
+            tmplData.recurrence_rule = null;
+          } else if (hasWeeklyCustom) {
+            tmplData.recurrence = "custom";
+            tmplData.recurrence_days = [];
+            tmplData.recurrence_rule = { type: "weekly_custom", weekdays: advancedWeekdays, weeks: advancedWeeks };
+          } else if (hasMonthly) {
+            tmplData.recurrence = "monthly";
+            tmplData.recurrence_days = monthDays;
+            tmplData.recurrence_rule = null;
+          }
+
+          if (template) {
+            await supabase.from("task_templates").update(tmplData).eq("id", template.id);
+          } else {
+            await supabase.from("task_templates").insert({
+              ...tmplData,
+              user_id: userData.user.id,
+              goal_id: goal.id,
+              category_id: categoryId,
+              sort_order: 0,
+            });
+          }
+        }
+      } catch {
+        // Template ops may fail if migrations not applied
+      }
+    }
+
+    setSaving(false);
+    onDataChanged();
+  }
+
+  const isHabit = goal.tracking_type === "habit";
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-lg bg-card border-border/50 max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="text-lg">Редактировать цель</DialogTitle>
+        </DialogHeader>
+
+        {loading ? (
+          <div className="py-8 text-center text-sm text-muted-foreground/50">Загрузка...</div>
+        ) : (
+          <div className="space-y-4">
+            <Input
+              placeholder="Название цели"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              autoFocus
+              className="h-12 bg-input/50 border-border/50 text-base"
+            />
+
+            {isHabit && template && (
+              <p className="text-xs text-muted-foreground/60">
+                Текущее: {getRecurrenceLabel(template)}
+              </p>
+            )}
+            {isHabit && !template && (
+              <p className="text-xs text-muted-foreground/60">
+                Текущее: Каждый день
+              </p>
+            )}
+
+            {isHabit && (
+              <div className="space-y-3">
+                <div className="flex rounded-xl border border-border/50 overflow-hidden text-xs">
+                  {([
+                    { mode: "weekly" as const, label: "По дням недели" },
+                    { mode: "weekly_custom" as const, label: "По дням и неделям" },
+                    { mode: "monthly" as const, label: "По числам" },
+                  ]).map(({ mode, label }) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() => setRecurrenceMode(mode)}
+                      className={`flex-1 py-2 transition-colors ${
+                        recurrenceMode === mode ? "bg-primary/10 text-primary font-medium" : "text-muted-foreground hover:bg-accent/50"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+
+                {recurrenceMode === "weekly" && (
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="text-xs text-muted-foreground">В какие дни?</label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const all = [1, 2, 3, 4, 5, 6, 0];
+                          setWeekDays(weekDays.length === 7 ? [] : all);
+                        }}
+                        className={`text-[10px] px-2 py-0.5 rounded-md transition-all ${
+                          weekDays.length === 7
+                            ? "bg-primary/10 text-primary font-medium"
+                            : "text-muted-foreground hover:bg-accent/50"
+                        }`}
+                      >
+                        Вся неделя
+                      </button>
+                    </div>
+                    <div className="flex gap-1.5">
+                      {["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"].map((name, i) => {
+                        const dayNum = i === 6 ? 0 : i + 1;
+                        return (
+                          <button
+                            key={i}
+                            type="button"
+                            onClick={() => setWeekDays((prev) => prev.includes(dayNum) ? prev.filter((d) => d !== dayNum) : [...prev, dayNum])}
+                            className={`flex-1 py-2 text-xs rounded-xl font-medium transition-all ${
+                              weekDays.includes(dayNum)
+                                ? "gradient-primary text-white"
+                                : "bg-muted text-muted-foreground hover:bg-accent"
+                            }`}
+                          >
+                            {name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {recurrenceMode === "weekly_custom" && (
+                  <div className="space-y-3">
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="text-xs text-muted-foreground">Дни недели</label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const all = [1, 2, 3, 4, 5, 6, 0];
+                            setAdvancedWeekdays(advancedWeekdays.length === 7 ? [] : all);
+                          }}
+                          className={`text-[10px] px-2 py-0.5 rounded-md transition-all ${
+                            advancedWeekdays.length === 7
+                              ? "bg-primary/10 text-primary font-medium"
+                              : "text-muted-foreground hover:bg-accent/50"
+                          }`}
+                        >
+                          Все дни
+                        </button>
+                      </div>
+                      <div className="flex gap-1.5">
+                        {["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"].map((name, i) => {
+                          const dayNum = i === 6 ? 0 : i + 1;
+                          const active = advancedWeekdays.includes(dayNum);
+                          return (
+                            <button
+                              key={i}
+                              type="button"
+                              onClick={() => setAdvancedWeekdays((prev) => active ? prev.filter((d) => d !== dayNum) : [...prev, dayNum])}
+                              className={`flex-1 py-2 text-xs rounded-xl font-medium transition-all ${
+                                active
+                                  ? "gradient-primary text-white"
+                                  : "bg-muted text-muted-foreground hover:bg-accent"
+                              }`}
+                            >
+                              {name}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1.5 block">Недели месяца</label>
+                      <div className="flex gap-1.5">
+                        {[
+                          { value: 1, label: "1-я" },
+                          { value: 2, label: "2-я" },
+                          { value: 3, label: "3-я" },
+                          { value: 4, label: "4-я" },
+                          { value: 5, label: "5-я" },
+                        ].map((opt) => {
+                          const active = advancedWeeks.includes(opt.value);
+                          return (
+                            <button
+                              key={opt.value}
+                              type="button"
+                              onClick={() => setAdvancedWeeks((prev) => active ? prev.filter((w) => w !== opt.value) : [...prev, opt.value])}
+                              className={`flex-1 py-2 text-xs rounded-xl font-medium transition-all ${
+                                active
+                                  ? "gradient-primary text-white"
+                                  : "bg-muted text-muted-foreground hover:bg-accent"
+                              }`}
+                            >
+                              {opt.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground/60 italic">
+                      Нед {advancedWeeks.sort((a,b)=>a-b).join(", ")}: {advancedWeekdays.sort((a,b)=>a-b).map((d)=>["Вс","Пн","Вт","Ср","Чт","Пт","Сб"][d]).join(", ")}
+                    </p>
+                  </div>
+                )}
+
+                {recurrenceMode === "monthly" && (
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1.5 block">Какие числа?</label>
+                    <div className="grid grid-cols-7 gap-1">
+                      {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => {
+                        const active = monthDays.includes(d);
+                        return (
+                          <button
+                            key={d}
+                            type="button"
+                            onClick={() => setMonthDays((prev) => active ? prev.filter((x) => x !== d) : [...prev, d])}
+                            className={`py-1.5 text-xs rounded-lg font-medium transition-all ${
+                              active
+                                ? "gradient-primary text-white"
+                                : "bg-muted text-muted-foreground hover:bg-accent"
+                            }`}
+                          >
+                            {d}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {monthDays.length > 0 && (
+                      <p className="text-[10px] text-muted-foreground/60 italic mt-1.5">
+                        Каждый месяц: {monthDays.sort((a,b)=>a-b).join(", ")} число
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                <div className="flex items-center gap-3">
+                  <input
+                    type="range"
+                    min="1"
+                    max="365"
+                    value={targetDays === "∞" ? "365" : targetDays}
+                    onChange={(e) => setTargetDays(e.target.value)}
+                    className="flex-1 h-2 rounded-full accent-primary cursor-pointer"
+                  />
+                  <div className="flex items-center gap-1.5">
+                    <Input
+                      type="number"
+                      min="1"
+                      value={targetDays === "∞" ? "" : targetDays}
+                      onChange={(e) => setTargetDays(e.target.value || "30")}
+                      placeholder="∞"
+                      className="w-16 h-9 text-center text-sm bg-input/50 border-border/50"
+                    />
+                    <span className="text-xs text-muted-foreground">дн</span>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    { value: "7", label: "1 нед" },
+                    { value: "14", label: "2 нед" },
+                    { value: "30", label: "1 мес" },
+                    { value: "90", label: "3 мес" },
+                    { value: "365", label: "1 год" },
+                    { value: "∞", label: "∞" },
+                  ].map((preset) => (
+                    <button
+                      key={preset.value}
+                      type="button"
+                      onClick={() => setTargetDays(preset.value)}
+                      className={`flex-1 min-w-[48px] py-1.5 text-xs rounded-lg border transition-all ${
+                        targetDays === preset.value
+                          ? "border-primary/50 bg-primary/10 text-primary font-medium"
+                          : "border-border/30 text-muted-foreground"
+                      }`}
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="flex gap-3 pt-2">
+              <Button type="button" variant="ghost" className="flex-1 h-11" onClick={() => onOpenChange(false)}>
+                Отмена
+              </Button>
+              <Button
+                onClick={handleSave}
+                disabled={saving || !title.trim()}
+                className="flex-1 h-11 gradient-primary text-white border-0"
+              >
+                {saving ? "..." : "Сохранить"}
+              </Button>
+            </div>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}

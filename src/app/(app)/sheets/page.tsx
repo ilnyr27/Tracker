@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import {
   Layers,
@@ -38,10 +39,20 @@ const TAB_TYPE_CONFIG = {
 } as const;
 
 export default function SheetsPage() {
+  return (
+    <Suspense>
+      <SheetsPageInner />
+    </Suspense>
+  );
+}
+
+function SheetsPageInner() {
+  const searchParams = useSearchParams();
+  const urlTabId = searchParams.get("tab");
   const [tabs, setTabs] = useState<CustomTab[]>([]);
   const [entries, setEntries] = useState<TabEntry[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTabId, setActiveTabId] = useState<string | null>(null);
+  const [activeTabId, setActiveTabId] = useState<string | null>(urlTabId);
   const [createOpen, setCreateOpen] = useState(false);
 
   const loadData = useCallback(async () => {
@@ -56,15 +67,24 @@ export default function SheetsPage() {
     if (tabsData) {
       setTabs(tabsData);
       if (!activeTabId && tabsData.length > 0) {
-        setActiveTabId(tabsData[0].id);
+        // If URL has tab param, use it; otherwise first tab
+        const target = urlTabId && tabsData.some((t) => t.id === urlTabId) ? urlTabId : tabsData[0].id;
+        setActiveTabId(target);
       }
     }
     setLoading(false);
-  }, [activeTabId]);
+  }, [activeTabId, urlTabId]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // Sync activeTabId when URL tab param changes
+  useEffect(() => {
+    if (urlTabId && urlTabId !== activeTabId) {
+      setActiveTabId(urlTabId);
+    }
+  }, [urlTabId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load entries for active tab
   useEffect(() => {
@@ -647,6 +667,7 @@ function TableView({
   }
 
   const [selectedCell, setSelectedCell] = useState<string | null>(null);
+  const [selectionEnd, setSelectionEnd] = useState<string | null>(null); // for range selection
   const [editingCell, setEditingCell] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
   const [fillDragging, setFillDragging] = useState(false);
@@ -694,9 +715,6 @@ function TableView({
     setEditingCell(null);
   }
 
-  const FORMULA_SUGGESTIONS = ["SUM", "AVERAGE", "MIN", "MAX", "COUNT"];
-  const [showSuggestions, setShowSuggestions] = useState(false);
-
   // Formula mode: when editing and value starts with "="
   const isFormulaMode = !!(editingCell && editValue.startsWith("="));
 
@@ -707,6 +725,27 @@ function TableView({
   const selectedCellRef = selectedEntry ? `${selectedCol}${selectedRowIdx + 1}` : "";
   const selectedRaw = selectedEntry && selectedCol ? getRawValue(selectedEntry, selectedCol) : "";
 
+  // Multi-cell selection range
+  function getCellCoords(cellKey: string): { row: number; col: number } | null {
+    const entry = entries.find((e) => cellKey.startsWith(e.id));
+    if (!entry) return null;
+    const colName = cellKey.split("-").pop() || "";
+    return { row: entries.indexOf(entry), col: cols.indexOf(colName) };
+  }
+
+  function isInSelection(rowIdx: number, colIdx: number): boolean {
+    if (!selectedCell) return false;
+    if (!selectionEnd) return false;
+    const start = getCellCoords(selectedCell);
+    const end = getCellCoords(selectionEnd);
+    if (!start || !end) return false;
+    const minR = Math.min(start.row, end.row);
+    const maxR = Math.max(start.row, end.row);
+    const minC = Math.min(start.col, end.col);
+    const maxC = Math.max(start.col, end.col);
+    return rowIdx >= minR && rowIdx <= maxR && colIdx >= minC && colIdx <= maxC;
+  }
+
   // Insert a cell reference into the formula being edited
   function insertCellRef(col: string, rowIdx: number) {
     const ref = `${col}${rowIdx + 1}`;
@@ -714,6 +753,32 @@ function TableView({
   }
 
   // Fill handle: auto-fill formula/value down from selected cell
+  // Detect date patterns: dd.mm.yyyy, yyyy-mm-dd, dd/mm/yyyy
+  function parseDate(val: string): Date | null {
+    // dd.mm.yyyy or dd/mm/yyyy
+    const dmy = val.match(/^(\d{1,2})[./](\d{1,2})[./](\d{4})$/);
+    if (dmy) {
+      const d = new Date(+dmy[3], +dmy[2] - 1, +dmy[1]);
+      return isNaN(d.getTime()) ? null : d;
+    }
+    // yyyy-mm-dd
+    const ymd = val.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (ymd) {
+      const d = new Date(+ymd[1], +ymd[2] - 1, +ymd[3]);
+      return isNaN(d.getTime()) ? null : d;
+    }
+    return null;
+  }
+
+  function formatDateLike(date: Date, pattern: string): string {
+    const dd = String(date.getDate()).padStart(2, "0");
+    const mm = String(date.getMonth() + 1).padStart(2, "0");
+    const yyyy = date.getFullYear();
+    if (pattern.includes("-")) return `${yyyy}-${mm}-${dd}`;
+    if (pattern.includes("/")) return `${dd}/${mm}/${yyyy}`;
+    return `${dd}.${mm}.${yyyy}`;
+  }
+
   function handleFillDown(sourceRowIdx: number, sourceCol: string, targetRowIdx: number) {
     if (sourceRowIdx === targetRowIdx || targetRowIdx < 0 || targetRowIdx >= entries.length) return;
     const sourceEntry = entries[sourceRowIdx];
@@ -722,17 +787,31 @@ function TableView({
     const startRow = Math.min(sourceRowIdx, targetRowIdx);
     const endRow = Math.max(sourceRowIdx, targetRowIdx);
 
+    // Check if source is a date — auto-increment
+    const sourceDate = parseDate(raw);
+    // Check if source is a number — auto-increment
+    const sourceNum = !raw.startsWith("=") && !sourceDate ? parseFloat(raw) : NaN;
+    const isNumber = !isNaN(sourceNum) && raw.trim() !== "";
+
     for (let r = startRow; r <= endRow; r++) {
       if (r === sourceRowIdx) continue;
       const entry = entries[r];
       let newVal = raw;
+      const rowDiff = r - sourceRowIdx;
 
-      // If formula, adjust row references (e.g., =A1+B1 → =A2+B2)
       if (raw.startsWith("=")) {
-        const rowDiff = r - sourceRowIdx;
+        // Formula: adjust row references
         newVal = raw.replace(/([A-Z]+)(\d+)/g, (_, colPart: string, rowPart: string) => {
           return `${colPart}${parseInt(rowPart) + rowDiff}`;
         });
+      } else if (sourceDate) {
+        // Date: increment by days
+        const newDate = new Date(sourceDate);
+        newDate.setDate(newDate.getDate() + rowDiff);
+        newVal = formatDateLike(newDate, raw);
+      } else if (isNumber) {
+        // Number: increment by 1
+        newVal = String(sourceNum + rowDiff);
       }
 
       onUpdate(entry.id, { ...entry.data, [sourceCol]: newVal });
@@ -741,7 +820,6 @@ function TableView({
 
   function handleFormulaBarChange(value: string) {
     setEditValue(value);
-    setShowSuggestions(value.startsWith("=") && value.length >= 1);
     if (selectedEntry && selectedCol) {
       const key = `${selectedEntry.id}-${selectedCol}`;
       if (editingCell !== key) {
@@ -753,20 +831,9 @@ function TableView({
   function handleFormulaBarKeyDown(e: React.KeyboardEvent) {
     if (e.key === "Enter" && selectedEntry && selectedCol) {
       commitEdit(selectedEntry.id, selectedCol);
-      setShowSuggestions(false);
     }
     if (e.key === "Escape") {
       setEditingCell(null);
-      setShowSuggestions(false);
-    }
-  }
-
-  function insertFormula(fn: string) {
-    setEditValue(`=${fn}(`);
-    setShowSuggestions(false);
-    if (selectedEntry && selectedCol) {
-      const key = `${selectedEntry.id}-${selectedCol}`;
-      if (editingCell !== key) setEditingCell(key);
     }
   }
 
@@ -857,23 +924,6 @@ function TableView({
             Кликни на ячейку
           </span>
         )}
-        {/* Formula suggestions */}
-        {showSuggestions && (
-          <div className="absolute top-full left-12 z-30 bg-popover border border-border/50 rounded-lg shadow-lg py-1 mt-0.5">
-            {FORMULA_SUGGESTIONS.map((fn) => (
-              <button
-                key={fn}
-                onClick={() => insertFormula(fn)}
-                className="block w-full text-left px-3 py-1.5 text-xs hover:bg-accent/50 transition-colors font-mono"
-              >
-                <span className="text-primary font-medium">={fn}</span>
-                <span className="text-muted-foreground/50 ml-1">
-                  ({fn === "SUM" ? "диапазон" : fn === "AVERAGE" ? "среднее" : fn === "MIN" ? "минимум" : fn === "MAX" ? "максимум" : "кол-во"})
-                </span>
-              </button>
-            ))}
-          </div>
-        )}
       </div>
 
       <div className="overflow-x-auto">
@@ -949,8 +999,10 @@ function TableView({
                 </td>
                 {cols.map((col) => {
                   const cellKey = `${entry.id}-${col}`;
+                  const colIdx = cols.indexOf(col);
                   const isEditing = editingCell === cellKey;
                   const isSelected = selectedCell === cellKey;
+                  const isInRange = isInSelection(rowIdx, colIdx);
                   const raw = getRawValue(entry, col);
                   const display = getDisplayValue(entry, col, rowIdx);
                   const isFormula = raw.startsWith("=");
@@ -964,6 +1016,7 @@ function TableView({
                       tabIndex={0}
                       className={`px-0 py-0 border-r border-border/15 relative outline-none ${
                         isSelected ? "ring-2 ring-primary/50 ring-inset z-10"
+                        : isInRange ? "bg-primary/8 ring-1 ring-primary/20 ring-inset"
                         : isReferenced ? "ring-2 ring-amber-400/50 ring-inset z-5 bg-amber-400/5"
                         : ""
                       }`}
@@ -975,10 +1028,14 @@ function TableView({
                           return;
                         }
                       }}
-                      onClick={() => {
+                      onClick={(e) => {
                         if (isFormulaMode && cellKey !== editingCell) return; // handled by onMouseDown
-                        setSelectedCell(cellKey);
-                        setShowSuggestions(false);
+                        if (e.shiftKey && selectedCell) {
+                          setSelectionEnd(cellKey);
+                        } else {
+                          setSelectedCell(cellKey);
+                          setSelectionEnd(null);
+                        }
                       }}
                       onDoubleClick={() => startEditing(entry.id, col, raw)}
                       onKeyDown={(e) => handleCellKeyDown(e, entry.id, col, rowIdx)}
@@ -988,12 +1045,11 @@ function TableView({
                           value={editValue}
                           onChange={(e) => {
                             setEditValue(e.target.value);
-                            setShowSuggestions(e.target.value.startsWith("="));
                           }}
-                          onBlur={() => { commitEdit(entry.id, col); setShowSuggestions(false); }}
+                          onBlur={() => { commitEdit(entry.id, col); }}
                           onKeyDown={(e) => {
-                            if (e.key === "Enter") { commitEdit(entry.id, col); setShowSuggestions(false); }
-                            if (e.key === "Escape") { setEditingCell(null); setShowSuggestions(false); }
+                            if (e.key === "Enter") { commitEdit(entry.id, col); }
+                            if (e.key === "Escape") { setEditingCell(null); }
                             if (e.key === "Tab") {
                               e.preventDefault();
                               commitEdit(entry.id, col);

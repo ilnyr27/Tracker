@@ -14,10 +14,10 @@ export function matchesDate(template: TaskTemplate, date: Date): boolean {
       return dayOfWeek >= 1 && dayOfWeek <= 5;
 
     case "weekly":
-      return template.recurrence_days.includes(dayOfWeek);
+      return (template.recurrence_days || []).includes(dayOfWeek);
 
     case "monthly":
-      return template.recurrence_days.includes(date.getDate());
+      return (template.recurrence_days || []).includes(date.getDate());
 
     case "custom":
       return matchesCustomRule(template.recurrence_rule, date);
@@ -36,6 +36,9 @@ function matchesCustomRule(rule: RecurrenceRule, date: Date): boolean {
 
     case "biweekly":
       return matchesBiweekly(date, rule.weekday ?? 0, rule.anchor_date);
+
+    case "weekly_custom":
+      return matchesWeeklyCustom(date, rule.weekdays ?? [], rule.weeks ?? []);
 
     default:
       return false;
@@ -82,6 +85,19 @@ function matchesBiweekly(date: Date, weekday: number, anchorDate?: string): bool
 }
 
 /**
+ * Check if `date` falls on specific weekdays in specific weeks of the month.
+ * E.g., weekdays=[1,3], weeks=[1,2] → Mon & Wed in weeks 1 & 2.
+ */
+function matchesWeeklyCustom(date: Date, weekdays: number[], weeks: number[]): boolean {
+  const dayOfWeek = date.getDay();
+  if (!weekdays.includes(dayOfWeek)) return false;
+
+  // Week of month: 1-5 based on day of month
+  const weekOfMonth = Math.ceil(date.getDate() / 7);
+  return weeks.includes(weekOfMonth);
+}
+
+/**
  * Get a human-readable Russian label for a recurrence pattern.
  */
 export function getRecurrenceLabel(template: TaskTemplate): string {
@@ -116,6 +132,11 @@ export function getRecurrenceLabel(template: TaskTemplate): string {
       if (rule.type === "biweekly") {
         const wd = rule.weekday ?? 0;
         return `Через неделю: ${dayNames[wd]}`;
+      }
+      if (rule.type === "weekly_custom") {
+        const wds = (rule.weekdays ?? []).sort((a, b) => a - b).map((d) => dayNames[d]).join(", ");
+        const wks = (rule.weeks ?? []).sort((a, b) => a - b).join(", ");
+        return `Нед ${wks}: ${wds}`;
       }
       return "Расширенное";
     }
