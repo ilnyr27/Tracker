@@ -7,7 +7,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { ListTodo, StickyNote, Camera, Send, ChevronLeft } from "lucide-react";
+import { ListTodo, StickyNote, Camera, Send, ChevronLeft, Kanban, BookOpen, Table2, Archive } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { motion, AnimatePresence } from "motion/react";
@@ -168,6 +168,51 @@ export function QuickAddSheet({ open, onOpenChange }: QuickAddSheetProps) {
                     <Camera className="h-5 w-5" style={{ color: "#ec4899" }} />
                   </div>
                   <span className="text-xs text-muted-foreground">Фото</span>
+                </motion.div>
+              </Link>
+
+              <Link href="/goals" onClick={() => handleClose(false)}>
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.15 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="flex h-24 flex-col items-center justify-center gap-2.5 rounded-2xl border border-border/30 bg-accent/30 hover:bg-accent/50 transition-colors"
+                >
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl" style={{ backgroundColor: "#14b8a620" }}>
+                    <Kanban className="h-5 w-5" style={{ color: "#14b8a6" }} />
+                  </div>
+                  <span className="text-xs text-muted-foreground">Канбан</span>
+                </motion.div>
+              </Link>
+
+              <Link href="/journal" onClick={() => handleClose(false)}>
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="flex h-24 flex-col items-center justify-center gap-2.5 rounded-2xl border border-border/30 bg-accent/30 hover:bg-accent/50 transition-colors"
+                >
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl" style={{ backgroundColor: "#f59e0b20" }}>
+                    <BookOpen className="h-5 w-5" style={{ color: "#f59e0b" }} />
+                  </div>
+                  <span className="text-xs text-muted-foreground">Журнал</span>
+                </motion.div>
+              </Link>
+
+              <Link href="/sheets" onClick={() => handleClose(false)}>
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.25 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="flex h-24 flex-col items-center justify-center gap-2.5 rounded-2xl border border-border/30 bg-accent/30 hover:bg-accent/50 transition-colors"
+                >
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl" style={{ backgroundColor: "#22c55e20" }}>
+                    <Table2 className="h-5 w-5" style={{ color: "#22c55e" }} />
+                  </div>
+                  <span className="text-xs text-muted-foreground">Листы</span>
                 </motion.div>
               </Link>
             </motion.div>

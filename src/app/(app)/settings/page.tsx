@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { LogOut, Palette, Repeat, ChevronRight, Bell, BellOff } from "lucide-react";
+import { LogOut, Palette, Repeat, ChevronRight, Bell, BellOff, Archive } from "lucide-react";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { AccentPicker } from "@/components/layout/accent-picker";
 import Link from "next/link";
@@ -178,9 +178,19 @@ export default function SettingsPage() {
         <CardContent>
           <Link
             href="/settings/recurring"
-            className="flex items-center justify-between py-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            className="flex items-center justify-between py-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
           >
             <span>Повторяющиеся задачи</span>
+            <ChevronRight className="h-4 w-4" />
+          </Link>
+          <Link
+            href="/archive"
+            className="flex items-center justify-between py-2 text-sm text-muted-foreground hover:text-foreground transition-colors border-t border-border/30"
+          >
+            <span className="flex items-center gap-2">
+              <Archive className="h-3.5 w-3.5" />
+              Архив
+            </span>
             <ChevronRight className="h-4 w-4" />
           </Link>
         </CardContent>

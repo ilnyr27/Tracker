@@ -10,7 +10,6 @@ import {
   Trash2,
   Archive,
   Pencil,
-  GripVertical,
   Bell,
   LayoutGrid,
   List,
@@ -26,6 +25,19 @@ import {
 } from "@/components/ui/dialog";
 import { motion, AnimatePresence } from "motion/react";
 import type { Goal, Category, Task } from "@/lib/supabase/types";
+
+// Custom grip icon: 2 dots top, line middle, 2 dots bottom
+function GripIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 16 16" fill="currentColor" className={className}>
+      <circle cx="5.5" cy="3" r="1.3" />
+      <circle cx="10.5" cy="3" r="1.3" />
+      <rect x="4" y="7" width="8" height="2" rx="1" />
+      <circle cx="5.5" cy="13" r="1.3" />
+      <circle cx="10.5" cy="13" r="1.3" />
+    </svg>
+  );
+}
 
 // Emoji choices for category picker
 const EMOJI_OPTIONS = [
@@ -86,6 +98,13 @@ export default function MainPage() {
   const [showGoals, setShowGoals] = useState(false);
   const [dragCatId, setDragCatId] = useState<string | null>(null);
   const [dragOverCatId, setDragOverCatId] = useState<string | null>(null);
+  const [userStatus, setUserStatus] = useState("Баланс — это прогресс");
+  const [editingStatus, setEditingStatus] = useState(false);
+
+  useEffect(() => {
+    const saved = localStorage.getItem("life_os_status");
+    if (saved) setUserStatus(saved);
+  }, []);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -244,9 +263,25 @@ export default function MainPage() {
       <div className="mb-6 flex items-end justify-between">
         <div>
           <h1 className="text-3xl font-bold gradient-text tracking-tight">Life OS</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Твоя жизнь. Твои правила.
-          </p>
+          {editingStatus ? (
+            <input
+              value={userStatus}
+              onChange={(e) => setUserStatus(e.target.value)}
+              onBlur={() => { setEditingStatus(false); localStorage.setItem("life_os_status", userStatus); }}
+              onKeyDown={(e) => { if (e.key === "Enter") { setEditingStatus(false); localStorage.setItem("life_os_status", userStatus); } }}
+              autoFocus
+              className="text-sm text-muted-foreground mt-1 bg-transparent border-b border-primary/30 outline-none w-full max-w-[250px]"
+              placeholder="Напиши свой статус..."
+            />
+          ) : (
+            <p
+              className="text-sm text-muted-foreground mt-1 cursor-pointer hover:text-muted-foreground/80 transition-colors"
+              onClick={() => setEditingStatus(true)}
+              title="Нажми чтобы изменить"
+            >
+              {userStatus}
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-1.5">
           {viewMode === "list" && (
@@ -323,19 +358,74 @@ export default function MainPage() {
                       style={{ backgroundColor: cat.color || "#666" }}
                     />
                     <div className="flex items-center">
-                      {/* Grip handle for drag */}
+                      {/* Grip/Menu button: tap=menu, hold=drag */}
                       <div
-                        className="pl-3 pr-1 py-3 cursor-grab active:cursor-grabbing text-muted-foreground/30 hover:text-muted-foreground/60 transition-colors touch-none"
-                        onTouchStart={(e) => {
-                          // Touch drag support
-                          const el = e.currentTarget.closest('[draggable]') as HTMLElement;
-                          if (el) {
+                        className="pl-3 pr-1 py-3 text-muted-foreground/30 hover:text-muted-foreground/60 transition-colors select-none"
+                        onMouseDown={(e) => {
+                          e.stopPropagation();
+                          const timer = setTimeout(() => {
+                            // Long press — start drag
+                            const el = e.currentTarget.closest("[draggable]") as HTMLElement;
+                            if (el) el.style.cursor = "grabbing";
                             setDragCatId(cat.id);
-                          }
+                          }, 300);
+                          const up = () => {
+                            clearTimeout(timer);
+                            document.removeEventListener("mouseup", up);
+                          };
+                          document.addEventListener("mouseup", up);
+                        }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (dragCatId) return; // was dragging
+                          setCatMenuOpen(catMenuOpen === cat.id ? null : cat.id);
+                        }}
+                        onTouchStart={(e) => {
+                          e.stopPropagation();
+                          const timer = setTimeout(() => {
+                            setDragCatId(cat.id);
+                          }, 400);
+                          const end = () => {
+                            clearTimeout(timer);
+                            document.removeEventListener("touchend", end);
+                          };
+                          document.addEventListener("touchend", end);
                         }}
                       >
-                        <GripVertical className="h-4 w-4" />
+                        <GripIcon className="h-4 w-4" />
                       </div>
+
+                      {/* Context menu */}
+                      <AnimatePresence>
+                        {catMenuOpen === cat.id && (
+                          <motion.div
+                            initial={{ opacity: 0, scale: 0.9 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.9 }}
+                            transition={{ duration: 0.15 }}
+                            className="absolute top-12 left-3 z-20 bg-popover border border-border/50 rounded-xl shadow-lg py-1 min-w-[140px]"
+                          >
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setCatMenuOpen(null); setEditingCatId(cat.id); setEditCatName(cat.name); setGoalDialogCatId(cat.id); setGoalDialogOpen(true); }}
+                              className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-accent/50 transition-colors"
+                            >
+                              <Pencil className="h-3.5 w-3.5" /> Переименовать
+                            </button>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); archiveCategory(cat.id); setCatMenuOpen(null); }}
+                              className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-accent/50 text-amber-500 transition-colors"
+                            >
+                              <Archive className="h-3.5 w-3.5" /> В архив
+                            </button>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); deleteCategory(cat.id); setCatMenuOpen(null); }}
+                              className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-destructive/10 text-destructive transition-colors"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" /> Удалить
+                            </button>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
 
                       {/* Main clickable area */}
                       <button
@@ -423,15 +513,41 @@ export default function MainPage() {
                 <motion.div
                   key={cat.id}
                   variants={item}
-                  className="relative rounded-3xl border border-border/40 bg-card p-5 flex flex-col items-start text-left gap-3 hover:shadow-lg hover:border-border/60 transition-all min-h-[160px]"
+                  draggable
+                  onDragStart={() => setDragCatId(cat.id)}
+                  onDragOver={(e) => { e.preventDefault(); setDragOverCatId(cat.id); }}
+                  onDragEnd={() => { setDragCatId(null); setDragOverCatId(null); }}
+                  onDrop={(e) => { e.preventDefault(); handleDrop(cat.id); }}
+                  className={`relative rounded-3xl border bg-card p-5 flex flex-col items-start text-left gap-3 transition-all min-h-[160px] ${
+                    dragOverCatId === cat.id && dragCatId !== cat.id
+                      ? "border-primary/50 shadow-md"
+                      : dragCatId === cat.id
+                        ? "opacity-50 border-border/30"
+                        : "border-border/40 hover:shadow-lg hover:border-border/60"
+                  }`}
                 >
-                  {/* Menu button */}
-                  <button
-                    onClick={(e) => { e.stopPropagation(); setCatMenuOpen(catMenuOpen === cat.id ? null : cat.id); }}
-                    className="absolute top-2.5 right-2.5 p-1.5 rounded-lg text-muted-foreground/40 hover:text-muted-foreground hover:bg-accent/60 transition-all z-10"
+                  {/* Grip/Menu button: tap=menu, hold=drag */}
+                  <div
+                    className="absolute top-2.5 right-2.5 p-1.5 rounded-lg text-muted-foreground/40 hover:text-muted-foreground hover:bg-accent/60 transition-all z-10 select-none"
+                    onMouseDown={(e) => {
+                      e.stopPropagation();
+                      const timer = setTimeout(() => {
+                        setDragCatId(cat.id);
+                      }, 300);
+                      const up = () => {
+                        clearTimeout(timer);
+                        document.removeEventListener("mouseup", up);
+                      };
+                      document.addEventListener("mouseup", up);
+                    }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (dragCatId) return;
+                      setCatMenuOpen(catMenuOpen === cat.id ? null : cat.id);
+                    }}
                   >
-                    <GripVertical className="h-4 w-4" />
-                  </button>
+                    <GripIcon className="h-4 w-4" />
+                  </div>
 
                   {/* Dropdown menu */}
                   <AnimatePresence>
@@ -536,17 +652,6 @@ export default function MainPage() {
         </AnimatePresence>
       )}
 
-      {/* Bottom motivational text */}
-      {!loading && (
-        <motion.p
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.5 }}
-          className="text-center text-sm text-muted-foreground/40 mt-8 italic"
-        >
-          Баланс — это прогресс. Работай над собой каждый день.
-        </motion.p>
-      )}
 
       {/* Category detail sheet — goals list */}
       <CategoryGoalsDialog
@@ -982,36 +1087,40 @@ function CategoryGoalsDialog({
 
     // Create task template for non-daily recurrence
     if (trackingType === "habit" && goalData) {
-      if (recurrenceMode === "weekly" && weekDays.length > 0) {
-        const tmplPayload: Record<string, unknown> = {
-          user_id: userData.user.id,
-          goal_id: goalData.id,
-          category_id: categoryId,
-          title: title.trim(),
-          recurrence: "weekly",
-          recurrence_days: weekDays,
-          sort_order: 0,
-        };
-        if (reminderTime) tmplPayload.reminder_time = reminderTime;
-        await supabase.from("task_templates").insert(tmplPayload);
-      } else if (recurrenceMode === "advanced") {
-        const tmplPayload: Record<string, unknown> = {
-          user_id: userData.user.id,
-          goal_id: goalData.id,
-          category_id: categoryId,
-          title: title.trim(),
-          recurrence: "custom",
-          recurrence_days: [],
-          sort_order: 0,
-        };
-        tmplPayload.recurrence_rule = {
-          type: advancedType,
-          weekday: advancedWeekday,
-          ...(advancedType === "nth_weekday" ? { nth: advancedNth } : {}),
-          ...(advancedType === "biweekly" ? { anchor_date: new Date().toISOString().slice(0, 10) } : {}),
-        };
-        if (reminderTime) tmplPayload.reminder_time = reminderTime;
-        await supabase.from("task_templates").insert(tmplPayload);
+      try {
+        if (recurrenceMode === "weekly" && weekDays.length > 0) {
+          const tmplPayload: Record<string, unknown> = {
+            user_id: userData.user.id,
+            goal_id: goalData.id,
+            category_id: categoryId,
+            title: title.trim(),
+            recurrence: "weekly",
+            recurrence_days: weekDays,
+            sort_order: 0,
+          };
+          if (reminderTime) tmplPayload.reminder_time = reminderTime;
+          await supabase.from("task_templates").insert(tmplPayload);
+        } else if (recurrenceMode === "advanced") {
+          const tmplPayload: Record<string, unknown> = {
+            user_id: userData.user.id,
+            goal_id: goalData.id,
+            category_id: categoryId,
+            title: title.trim(),
+            recurrence: "custom",
+            recurrence_days: [],
+            sort_order: 0,
+          };
+          tmplPayload.recurrence_rule = {
+            type: advancedType,
+            weekday: advancedWeekday,
+            ...(advancedType === "nth_weekday" ? { nth: advancedNth } : {}),
+            ...(advancedType === "biweekly" ? { anchor_date: new Date().toISOString().slice(0, 10) } : {}),
+          };
+          if (reminderTime) tmplPayload.reminder_time = reminderTime;
+          await supabase.from("task_templates").insert(tmplPayload);
+        }
+      } catch {
+        // Template creation may fail if migrations 004/005 not applied — goal still saved
       }
     }
 

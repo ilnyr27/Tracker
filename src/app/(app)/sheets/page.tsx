@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import {
   Layers,
@@ -10,6 +10,7 @@ import {
   Table2,
   List,
   Check,
+  Pencil,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -166,6 +167,18 @@ export default function SheetsPage() {
     await supabase.from("tab_entries").delete().eq("id", id);
   }
 
+  async function renameTab(id: string, name: string) {
+    const supabase = createClient();
+    setTabs((prev) => prev.map((t) => t.id === id ? { ...t, name } : t));
+    await supabase.from("custom_tabs").update({ name }).eq("id", id);
+  }
+
+  async function updateTabSchema(id: string, newSchema: Record<string, unknown>) {
+    const supabase = createClient();
+    setTabs((prev) => prev.map((t) => t.id === id ? { ...t, schema: newSchema } : t));
+    await supabase.from("custom_tabs").update({ schema: newSchema }).eq("id", id);
+  }
+
   const activeTab = tabs.find((t) => t.id === activeTabId);
 
   return (
@@ -248,26 +261,12 @@ export default function SheetsPage() {
             exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.2 }}
           >
-            {/* Tab header with delete */}
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-medium">{activeTab.name}</span>
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
-                  {TAB_TYPE_CONFIG[activeTab.tab_type].label}
-                </span>
-              </div>
-              {!activeTab.is_system && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-destructive hover:text-destructive hover:bg-destructive/10 h-7 text-xs"
-                  onClick={() => deleteTab(activeTab.id)}
-                >
-                  <Trash2 className="h-3 w-3 mr-1" />
-                  Удалить
-                </Button>
-              )}
-            </div>
+            {/* Tab header with rename + delete */}
+            <TabHeader
+              tab={activeTab}
+              onRename={(name) => renameTab(activeTab.id, name)}
+              onDelete={() => deleteTab(activeTab.id)}
+            />
 
             {/* Tab content by type */}
             {activeTab.tab_type === "list" && (
@@ -293,6 +292,7 @@ export default function SheetsPage() {
                 onAdd={addEntry}
                 onUpdate={updateEntry}
                 onDelete={deleteEntry}
+                onSchemaChange={(s) => updateTabSchema(activeTab.id, s)}
               />
             )}
           </motion.div>
@@ -542,6 +542,60 @@ function evaluateFormula(
   }
 }
 
+// --- Tab Header with inline rename ---
+function TabHeader({ tab, onRename, onDelete }: {
+  tab: CustomTab;
+  onRename: (name: string) => void;
+  onDelete: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(tab.name);
+
+  useEffect(() => { setName(tab.name); }, [tab.name]);
+
+  return (
+    <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center gap-2">
+        {editing ? (
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onBlur={() => { if (name.trim()) { onRename(name.trim()); } setEditing(false); }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") { if (name.trim()) onRename(name.trim()); setEditing(false); }
+              if (e.key === "Escape") { setName(tab.name); setEditing(false); }
+            }}
+            autoFocus
+            className="text-sm font-medium bg-transparent border-b border-primary outline-none px-0 py-0"
+          />
+        ) : (
+          <button
+            onClick={() => setEditing(true)}
+            className="text-sm font-medium hover:text-primary transition-colors flex items-center gap-1.5 group"
+          >
+            {tab.name}
+            <Pencil className="h-3 w-3 text-muted-foreground/0 group-hover:text-muted-foreground/50 transition-colors" />
+          </button>
+        )}
+        <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
+          {TAB_TYPE_CONFIG[tab.tab_type].label}
+        </span>
+      </div>
+      {!tab.is_system && (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="text-destructive hover:text-destructive hover:bg-destructive/10 h-7 text-xs"
+          onClick={onDelete}
+        >
+          <Trash2 className="h-3 w-3 mr-1" />
+          Удалить
+        </Button>
+      )}
+    </div>
+  );
+}
+
 // --- Table View (Google Sheets-like) ---
 function TableView({
   entries,
@@ -549,12 +603,14 @@ function TableView({
   onAdd,
   onUpdate,
   onDelete,
+  onSchemaChange,
 }: {
   entries: TabEntry[];
   schema: Record<string, unknown> | null;
   onAdd: (data: Record<string, unknown>) => void;
   onUpdate: (id: string, data: Record<string, unknown>) => void;
   onDelete: (id: string) => void;
+  onSchemaChange: (schema: Record<string, unknown>) => void;
 }) {
   const colCount = schema?.columns
     ? (schema.columns as string[]).length
@@ -564,9 +620,39 @@ function TableView({
 
   const cols = Array.from({ length: colCount }, (_, i) => colLetter(i));
 
+  function addColumn() {
+    const newCol = colLetter(colCount);
+    const currentCols = schema?.columns ? [...(schema.columns as string[])] : cols;
+    onSchemaChange({ ...schema, columns: [...currentCols, newCol] });
+    // Add new column to all existing entries
+    for (const entry of entries) {
+      if (!(newCol in entry.data)) {
+        onUpdate(entry.id, { ...entry.data, [newCol]: "" });
+      }
+    }
+  }
+
+  function removeColumn(colIdx: number) {
+    if (colCount <= 1) return;
+    const colToRemove = cols[colIdx];
+    const currentCols = schema?.columns ? [...(schema.columns as string[])] : [...cols];
+    currentCols.splice(colIdx, 1);
+    onSchemaChange({ ...schema, columns: currentCols });
+    // Remove column data from entries
+    for (const entry of entries) {
+      const newData = { ...entry.data };
+      delete newData[colToRemove];
+      onUpdate(entry.id, newData);
+    }
+  }
+
   const [selectedCell, setSelectedCell] = useState<string | null>(null);
   const [editingCell, setEditingCell] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
+  const [fillDragging, setFillDragging] = useState(false);
+  const [fillTarget, setFillTarget] = useState<number | null>(null);
+  const fillTargetRef = useRef<number | null>(null);
+  const fillSourceRef = useRef<{ row: number; col: string } | null>(null);
 
   // Get raw cell value (formula or value)
   function getRawValue(entry: TabEntry, col: string): string {
@@ -625,6 +711,32 @@ function TableView({
   function insertCellRef(col: string, rowIdx: number) {
     const ref = `${col}${rowIdx + 1}`;
     setEditValue((prev) => prev + ref);
+  }
+
+  // Fill handle: auto-fill formula/value down from selected cell
+  function handleFillDown(sourceRowIdx: number, sourceCol: string, targetRowIdx: number) {
+    if (sourceRowIdx === targetRowIdx || targetRowIdx < 0 || targetRowIdx >= entries.length) return;
+    const sourceEntry = entries[sourceRowIdx];
+    const raw = getRawValue(sourceEntry, sourceCol);
+
+    const startRow = Math.min(sourceRowIdx, targetRowIdx);
+    const endRow = Math.max(sourceRowIdx, targetRowIdx);
+
+    for (let r = startRow; r <= endRow; r++) {
+      if (r === sourceRowIdx) continue;
+      const entry = entries[r];
+      let newVal = raw;
+
+      // If formula, adjust row references (e.g., =A1+B1 → =A2+B2)
+      if (raw.startsWith("=")) {
+        const rowDiff = r - sourceRowIdx;
+        newVal = raw.replace(/([A-Z]+)(\d+)/g, (_, colPart: string, rowPart: string) => {
+          return `${colPart}${parseInt(rowPart) + rowDiff}`;
+        });
+      }
+
+      onUpdate(entry.id, { ...entry.data, [sourceCol]: newVal });
+    }
   }
 
   function handleFormulaBarChange(value: string) {
@@ -772,22 +884,64 @@ function TableView({
               <th className="w-10 px-2 py-2 text-center text-[10px] font-medium text-muted-foreground/50 border-r border-border/30">
                 #
               </th>
-              {cols.map((col) => (
+              {cols.map((col, colIdx) => (
                 <th
                   key={col}
-                  className="px-1 py-2 text-center text-xs font-semibold text-muted-foreground min-w-[100px] border-r border-border/20"
+                  className="px-1 py-2 text-center text-xs font-semibold text-muted-foreground min-w-[100px] border-r border-border/20 group/col relative"
                 >
                   {col}
+                  {colCount > 1 && (
+                    <button
+                      onClick={() => removeColumn(colIdx)}
+                      className="absolute top-0.5 right-0.5 h-4 w-4 rounded text-[8px] leading-none text-muted-foreground/0 group-hover/col:text-muted-foreground/40 hover:!text-destructive hover:!bg-destructive/10 transition-all flex items-center justify-center"
+                      title="Удалить столбец"
+                    >
+                      ×
+                    </button>
+                  )}
                 </th>
               ))}
-              <th className="w-8" />
+              {/* Add column button */}
+              <th className="w-8 px-0">
+                <button
+                  onClick={addColumn}
+                  className="w-full h-full flex items-center justify-center text-muted-foreground/30 hover:text-primary transition-colors"
+                  title="Добавить столбец"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                </button>
+              </th>
             </tr>
           </thead>
           <tbody>
             {entries.map((entry, rowIdx) => (
               <tr
                 key={entry.id}
-                className="group border-b border-border/15 hover:bg-accent/20"
+                className={`group border-b border-border/15 hover:bg-accent/20 ${
+                  fillDragging && fillTarget !== null && fillSourceRef.current
+                    ? rowIdx >= Math.min(fillSourceRef.current.row, fillTarget) && rowIdx <= Math.max(fillSourceRef.current.row, fillTarget)
+                      ? "bg-primary/5"
+                      : ""
+                    : ""
+                }`}
+                onMouseEnter={() => {
+                  if (fillDragging) {
+                    fillTargetRef.current = rowIdx;
+                    setFillTarget(rowIdx);
+                  }
+                }}
+                onMouseUp={() => {
+                  if (fillDragging && fillSourceRef.current) {
+                    const src = fillSourceRef.current;
+                    if (fillTargetRef.current !== null && fillTargetRef.current !== src.row) {
+                      handleFillDown(src.row, src.col, fillTargetRef.current);
+                    }
+                    setFillDragging(false);
+                    setFillTarget(null);
+                    fillTargetRef.current = null;
+                    fillSourceRef.current = null;
+                  }
+                }}
               >
                 {/* Row number */}
                 <td className="px-2 py-0 text-center text-[10px] text-muted-foreground/40 font-medium border-r border-border/30 bg-muted/10 select-none">
@@ -861,6 +1015,20 @@ function TableView({
                         >
                           {display}
                         </div>
+                      )}
+                      {/* Fill handle — bottom-right corner dot */}
+                      {isSelected && !isEditing && (
+                        <div
+                          className="absolute -bottom-[3px] -right-[3px] w-[7px] h-[7px] bg-primary border border-white cursor-crosshair z-20 rounded-sm"
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setFillDragging(true);
+                            fillTargetRef.current = rowIdx;
+                            fillSourceRef.current = { row: rowIdx, col };
+                            setFillTarget(rowIdx);
+                          }}
+                        />
                       )}
                     </td>
                   );
