@@ -9,6 +9,29 @@ type ExportData = {
   sheets?: { tabs: Record<string, unknown>[]; entries: Record<string, unknown>[] };
 };
 
+// Fields to exclude from export — internal IDs and system fields
+const EXCLUDE_FIELDS = new Set(["id", "user_id", "template_id", "parent_goal_id", "goal_id", "tab_id", "category_id", "image_url", "thumbnail_path", "storage_path", "sort_order", "is_system"]);
+
+function cleanRow(row: Record<string, unknown>, extraExclude?: Set<string>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [key, val] of Object.entries(row)) {
+    if (EXCLUDE_FIELDS.has(key)) continue;
+    if (extraExclude?.has(key)) continue;
+    if (val === null || val === undefined) continue;
+    out[key] = val;
+  }
+  return out;
+}
+
+// Map to add category names instead of IDs
+async function getCategoryMap(): Promise<Map<string, string>> {
+  const supabase = createClient();
+  const { data } = await supabase.from("categories").select("id, name");
+  const map = new Map<string, string>();
+  if (data) for (const c of data) map.set(c.id, c.name);
+  return map;
+}
+
 async function fetchExportData(items: {
   categories?: boolean;
   goals?: boolean;
@@ -20,27 +43,68 @@ async function fetchExportData(items: {
   const supabase = createClient();
   const result: ExportData = {};
   const queries: Promise<void>[] = [];
+  const catMap = await getCategoryMap();
 
   if (items.categories) {
-    queries.push((async () => { const { data } = await supabase.from("categories").select("*").order("sort_order"); result.categories = data || []; })());
+    queries.push((async () => {
+      const { data } = await supabase.from("categories").select("*").order("sort_order");
+      result.categories = (data || []).map((r) => cleanRow(r));
+    })());
   }
   if (items.goals) {
-    queries.push((async () => { const { data } = await supabase.from("goals").select("*").order("created_at"); result.goals = data || []; })());
+    queries.push((async () => {
+      const { data } = await supabase.from("goals").select("*").order("created_at");
+      result.goals = (data || []).map((r) => {
+        const row = cleanRow(r);
+        // Add category name
+        if (r.category_id) row["category"] = catMap.get(r.category_id as string) || "";
+        // Translate status
+        if (row.status === "active") row.status = "Активна";
+        else if (row.status === "completed") row.status = "Завершена";
+        else if (row.status === "cancelled") row.status = "Отменена";
+        // Translate tracking_type
+        if (row.tracking_type === "habit") row.tracking_type = "Привычка";
+        else if (row.tracking_type === "milestone") row.tracking_type = "Веха";
+        return row;
+      });
+    })());
   }
   if (items.tasks) {
-    queries.push((async () => { const { data } = await supabase.from("tasks").select("*").order("scheduled_date"); result.tasks = data || []; })());
+    queries.push((async () => {
+      const { data } = await supabase.from("tasks").select("*").order("scheduled_date");
+      result.tasks = (data || []).map((r) => {
+        const row = cleanRow(r);
+        if (r.category_id) row["category"] = catMap.get(r.category_id as string) || "";
+        if (row.is_done === true) row.is_done = "Да";
+        else if (row.is_done === false) row.is_done = "Нет";
+        return row;
+      });
+    })());
   }
   if (items.notes) {
-    queries.push((async () => { const { data } = await supabase.from("notes").select("*").order("note_date"); result.notes = data || []; })());
+    queries.push((async () => {
+      const { data } = await supabase.from("notes").select("*").order("note_date");
+      result.notes = (data || []).map((r) => cleanRow(r));
+    })());
   }
   if (items.journal) {
-    queries.push((async () => { const { data } = await supabase.from("daily_entries").select("*").order("entry_date"); result.journal = data || []; })());
+    queries.push((async () => {
+      const { data } = await supabase.from("daily_entries").select("*").order("entry_date");
+      result.journal = (data || []).map((r) => {
+        const row = cleanRow(r);
+        if (r.category_id) row["category"] = catMap.get(r.category_id as string) || "";
+        return row;
+      });
+    })());
   }
   if (items.sheets) {
     queries.push((async () => {
       const { data: tabs } = await supabase.from("custom_tabs").select("*").order("sort_order");
       const { data: entries } = await supabase.from("tab_entries").select("*").order("sort_order");
-      result.sheets = { tabs: tabs || [], entries: entries || [] };
+      result.sheets = {
+        tabs: (tabs || []).map((r) => cleanRow(r)),
+        entries: (entries || []).map((r) => cleanRow(r)),
+      };
     })());
   }
 
@@ -58,9 +122,11 @@ function downloadBlob(blob: Blob, filename: string) {
 }
 
 const HEADERS_RU: Record<string, Record<string, string>> = {
-  categories: { id: "ID", name: "Название", icon: "Иконка", color: "Цвет", sort_order: "Порядок", is_active: "Активна", created_at: "Создана" },
-  goals: { id: "ID", title: "Название", tracking_type: "Тип", status: "Статус", level: "Уровень", target_days: "Цель дней", created_at: "Создана" },
-  tasks: { id: "ID", title: "Название", is_done: "Выполнена", scheduled_date: "Дата", priority: "Приоритет", created_at: "Создана" },
+  categories: { name: "Название", icon: "Иконка", color: "Цвет", is_active: "Активна", created_at: "Создана" },
+  goals: { title: "Название", tracking_type: "Тип", status: "Статус", category: "Категория", level: "Уровень", target_days: "Цель дней", target_date: "Дедлайн", start_date: "Начало", reminder_time: "Напоминание", reminder_date: "Дата напоминания", completed_at: "Завершена", created_at: "Создана", updated_at: "Обновлена" },
+  tasks: { title: "Название", is_done: "Выполнена", category: "Категория", scheduled_date: "Дата", priority: "Приоритет", completed_at: "Завершена", created_at: "Создана" },
+  notes: { note_date: "Дата", content: "Текст", pinned: "Закреплена", created_at: "Создана" },
+  journal: { entry_date: "Дата", content: "Запись", category: "Категория", created_at: "Создана" },
 };
 
 export async function exportXlsx(items: Record<string, boolean>) {
@@ -68,8 +134,9 @@ export async function exportXlsx(items: Record<string, boolean>) {
   const XLSX = await import("xlsx");
   const wb = XLSX.utils.book_new();
 
-  const addSheet = (name: string, rows: Record<string, unknown>[], headerMap?: Record<string, string>) => {
+  const addSheet = (name: string, rows: Record<string, unknown>[], headerKey?: string) => {
     if (!rows.length) return;
+    const headerMap = headerKey ? HEADERS_RU[headerKey] : undefined;
     if (headerMap) {
       const mapped = rows.map((row) => {
         const out: Record<string, unknown> = {};
@@ -84,11 +151,11 @@ export async function exportXlsx(items: Record<string, boolean>) {
     }
   };
 
-  if (data.categories) addSheet("Категории", data.categories, HEADERS_RU.categories);
-  if (data.goals) addSheet("Цели", data.goals, HEADERS_RU.goals);
-  if (data.tasks) addSheet("Задачи", data.tasks, HEADERS_RU.tasks);
-  if (data.notes) addSheet("Заметки", data.notes);
-  if (data.journal) addSheet("Журнал", data.journal);
+  if (data.categories) addSheet("Категории", data.categories, "categories");
+  if (data.goals) addSheet("Цели", data.goals, "goals");
+  if (data.tasks) addSheet("Задачи", data.tasks, "tasks");
+  if (data.notes) addSheet("Заметки", data.notes, "notes");
+  if (data.journal) addSheet("Журнал", data.journal, "journal");
   if (data.sheets) {
     addSheet("Листы", data.sheets.tabs);
     addSheet("Данные листов", data.sheets.entries);
@@ -114,9 +181,11 @@ export async function exportDocx(items: Record<string, boolean>) {
   if (data.journal?.length) {
     children.push(new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: "Журнал", bold: true })] }));
     for (const entry of data.journal) {
+      const date = String(entry.entry_date || entry.created_at || "");
+      const cat = entry.category ? ` (${entry.category})` : "";
       children.push(new Paragraph({
         heading: HeadingLevel.HEADING_2,
-        children: [new TextRun({ text: String(entry.entry_date || ""), bold: true })],
+        children: [new TextRun({ text: `${date}${cat}`, bold: true })],
       }));
       children.push(new Paragraph({ children: [new TextRun(String(entry.content || ""))] }));
       children.push(new Paragraph({ text: "" }));
@@ -128,10 +197,24 @@ export async function exportDocx(items: Record<string, boolean>) {
     for (const note of data.notes) {
       children.push(new Paragraph({
         heading: HeadingLevel.HEADING_2,
-        children: [new TextRun({ text: String(note.note_date || ""), bold: true })],
+        children: [new TextRun({ text: String(note.note_date || note.created_at || ""), bold: true })],
       }));
       children.push(new Paragraph({ children: [new TextRun(String(note.content || ""))] }));
       children.push(new Paragraph({ text: "" }));
+    }
+  }
+
+  if (data.goals?.length) {
+    children.push(new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: "Цели", bold: true })] }));
+    for (const goal of data.goals) {
+      const status = goal.status ? ` [${goal.status}]` : "";
+      const cat = goal.category ? ` — ${goal.category}` : "";
+      children.push(new Paragraph({
+        children: [
+          new TextRun({ text: `${goal.title}${cat}${status}`, bold: true }),
+          ...(goal.target_days ? [new TextRun({ text: ` (${goal.target_days} дней)`, color: "666666" })] : []),
+        ],
+      }));
     }
   }
 

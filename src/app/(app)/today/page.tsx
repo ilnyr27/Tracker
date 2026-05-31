@@ -95,7 +95,13 @@ export default function MainPage() {
   const [editCatName, setEditCatName] = useState("");
   const [catMenuOpen, setCatMenuOpen] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"grid" | "list">("list");
-  const [showGoals, setShowGoals] = useState(false);
+  const [showGoals, setShowGoals] = useState(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("life_os_show_goals");
+      return saved !== null ? saved === "true" : true; // default: shown
+    }
+    return true;
+  });
   const [dragCatId, setDragCatId] = useState<string | null>(null);
   const [dragOverCatId, setDragOverCatId] = useState<string | null>(null);
   const [dragOverPos, setDragOverPos] = useState<"above" | "below">("below");
@@ -291,7 +297,7 @@ export default function MainPage() {
         <div className="flex items-center gap-1.5">
           {viewMode === "list" && (
             <button
-              onClick={() => setShowGoals(!showGoals)}
+              onClick={() => { const next = !showGoals; setShowGoals(next); localStorage.setItem("life_os_show_goals", String(next)); }}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1 ${showGoals ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-accent/50"}`}
             >
               Все цели
@@ -771,7 +777,7 @@ function SwipeableGoalCard({
   editingGoalId, editTitle, confirmDeleteId,
   onEditStart, onEditChange, onEditSave, onEditCancel,
   onArchive, onDelete, onConfirmDeleteStart, onConfirmDeleteCancel,
-  onToggleMilestone,
+  onToggleMilestone, onTargetDaysChange,
 }: {
   goal: Goal;
   isHabit: boolean;
@@ -792,8 +798,11 @@ function SwipeableGoalCard({
   onConfirmDeleteStart: () => void;
   onConfirmDeleteCancel: () => void;
   onToggleMilestone: () => void;
+  onTargetDaysChange: (days: number) => void;
 }) {
   const [swipeX, setSwipeX] = useState(0);
+  const [editingTarget, setEditingTarget] = useState(false);
+  const [editTargetVal, setEditTargetVal] = useState("");
   const touchStart = useRef<{ x: number; y: number } | null>(null);
   const swiping = useRef(false);
 
@@ -936,12 +945,42 @@ function SwipeableGoalCard({
             <div>
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm font-medium cursor-text" onClick={onEditStart}>{goal.title}</span>
-                <span className="text-sm text-muted-foreground tabular-nums">
-                  {done}/{target}{" "}
-                  <span className="font-semibold" style={{ color: cat?.color || "var(--primary)" }}>
-                    {percent}%
+                {editingTarget ? (
+                  <div className="flex items-center gap-1">
+                    <span className="text-sm text-muted-foreground tabular-nums">{done}/</span>
+                    <input
+                      type="number"
+                      value={editTargetVal}
+                      onChange={(e) => setEditTargetVal(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          const v = parseInt(editTargetVal);
+                          if (v > 0) onTargetDaysChange(v);
+                          setEditingTarget(false);
+                        }
+                        if (e.key === "Escape") setEditingTarget(false);
+                      }}
+                      onBlur={() => {
+                        const v = parseInt(editTargetVal);
+                        if (v > 0) onTargetDaysChange(v);
+                        setEditingTarget(false);
+                      }}
+                      autoFocus
+                      className="w-12 h-6 text-sm text-center rounded border border-primary/50 bg-input/50 outline-none tabular-nums"
+                    />
+                  </div>
+                ) : (
+                  <span
+                    className="text-sm text-muted-foreground tabular-nums cursor-pointer hover:text-foreground transition-colors"
+                    onClick={() => { setEditingTarget(true); setEditTargetVal(String(target)); }}
+                    title="Нажми чтобы изменить цель"
+                  >
+                    {done}/{target}{" "}
+                    <span className="font-semibold" style={{ color: cat?.color || "var(--primary)" }}>
+                      {percent}%
+                    </span>
                   </span>
-                </span>
+                )}
               </div>
               <div className="h-2.5 w-full rounded-full bg-muted overflow-hidden">
                 <motion.div
@@ -1259,6 +1298,11 @@ function CategoryGoalsDialog({
                 onConfirmDeleteStart={() => setConfirmDeleteId(goal.id)}
                 onConfirmDeleteCancel={() => setConfirmDeleteId(null)}
                 onToggleMilestone={() => toggleMilestone(goal)}
+                onTargetDaysChange={async (days) => {
+                  const supabase = createClient();
+                  await supabase.from("goals").update({ target_days: days }).eq("id", goal.id);
+                  onDataChanged();
+                }}
               />
             );
           })}

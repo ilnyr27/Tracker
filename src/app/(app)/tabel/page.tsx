@@ -62,8 +62,18 @@ const CHART_TYPES: { id: ChartType; label: string; icon: typeof Radar }[] = [
 type CatStat = { name: string; color: string; done: number; total: number; pct: number };
 
 export default function MatrixPage() {
-  const [baseMode, setBaseMode] = useState<BaseMode>("week");
-  const [fromToday, setFromToday] = useState(false);
+  const [baseMode, setBaseMode] = useState<BaseMode>(() => {
+    if (typeof window !== "undefined") {
+      return (localStorage.getItem("matrix_base_mode") as BaseMode) || "week";
+    }
+    return "week";
+  });
+  const [fromToday, setFromToday] = useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("matrix_from_today") === "true";
+    }
+    return false;
+  });
   const [currentDate, setCurrentDate] = useState(new Date());
   const [categories, setCategories] = useState<Category[]>([]);
   const [goals, setGoals] = useState<Goal[]>([]);
@@ -300,6 +310,19 @@ export default function MatrixPage() {
           </Button>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => {
+              const next = !fromToday;
+              setFromToday(next);
+              localStorage.setItem("matrix_from_today", String(next));
+              if (next) setCurrentDate(new Date());
+            }}
+            className={`px-2 py-1.5 rounded-lg text-xs border transition-all ${
+              fromToday ? "bg-primary/10 text-primary border-primary/30 font-medium" : "text-muted-foreground border-border/50 hover:bg-accent/50"
+            }`}
+          >
+            Сегодня→
+          </button>
           <div className="flex rounded-xl border border-border/50 overflow-hidden text-xs" role="tablist" aria-label="Период отображения">
             {([
               { id: "week" as BaseMode, label: "Неделя" },
@@ -310,7 +333,10 @@ export default function MatrixPage() {
                 key={tab.id}
                 role="tab"
                 aria-selected={baseMode === tab.id}
-                onClick={() => setBaseMode(tab.id)}
+                onClick={() => {
+                  setBaseMode(tab.id);
+                  localStorage.setItem("matrix_base_mode", tab.id);
+                }}
                 className={`px-2.5 py-1.5 transition-colors ${
                   baseMode === tab.id ? "bg-primary/10 text-primary font-medium" : "text-muted-foreground hover:bg-accent/50"
                 }`}
@@ -319,14 +345,6 @@ export default function MatrixPage() {
               </button>
             ))}
           </div>
-          <button
-            onClick={() => { setFromToday(!fromToday); if (!fromToday) setCurrentDate(new Date()); }}
-            className={`px-2 py-1.5 rounded-lg text-xs border transition-all ${
-              fromToday ? "bg-primary/10 text-primary border-primary/30 font-medium" : "text-muted-foreground border-border/50 hover:bg-accent/50"
-            }`}
-          >
-            Сегодня→
-          </button>
         </div>
       </div>
 
