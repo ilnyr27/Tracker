@@ -11,15 +11,31 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [mode, setMode] = useState<"login" | "signup">("login");
+  const [mode, setMode] = useState<"login" | "signup" | "forgot">("login");
   const [showPassword, setShowPassword] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-
     setLoading(true);
+
     const supabase = createClient();
+
+    if (mode === "forgot") {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/auth/callback?next=/reset-password`,
+      });
+      setLoading(false);
+      if (error) {
+        setError(error.message === "email rate limit exceeded"
+          ? "Слишком много попыток. Подожди немного"
+          : error.message);
+        return;
+      }
+      setResetSent(true);
+      return;
+    }
 
     const { error } =
       mode === "login"
@@ -88,96 +104,140 @@ export default function LoginPage() {
           </motion.div>
           <h1 className="text-3xl font-bold gradient-text">Life OS</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            {mode === "login"
-              ? "Войди, чтобы продолжить"
-              : "Создай аккаунт для начала"}
+            {mode === "forgot"
+              ? "Восстановление пароля"
+              : mode === "login"
+                ? "Войди, чтобы продолжить"
+                : "Создай аккаунт для начала"}
           </p>
         </div>
 
         {/* Form */}
         <div className="rounded-2xl border border-border/50 bg-card/50 p-6 backdrop-blur-sm">
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-3">
-              <div className="glow-ring rounded-lg">
-                <Input
-                  type="email"
-                  placeholder="Email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  autoComplete="email"
-                  className="h-12 bg-input/50 border-0 text-base placeholder:text-muted-foreground/50"
-                />
+          {mode === "forgot" && resetSent ? (
+            <div className="text-center space-y-3">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
+                <ArrowRight className="h-6 w-6 text-primary" />
               </div>
-              <div className="glow-ring rounded-lg relative">
-                <Input
-                  type={showPassword ? "text" : "password"}
-                  placeholder="Пароль"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  minLength={6}
-                  autoComplete={
-                    mode === "login" ? "current-password" : "new-password"
-                  }
-                  className="h-12 bg-input/50 border-0 text-base placeholder:text-muted-foreground/50 pr-10"
-                />
+              <p className="text-sm text-muted-foreground">
+                Ссылка для сброса пароля отправлена на <strong>{email}</strong>. Проверь почту.
+              </p>
+              <Button
+                variant="ghost"
+                className="text-sm"
+                onClick={() => { setMode("login"); setResetSent(false); setError(null); }}
+              >
+                Вернуться ко входу
+              </Button>
+            </div>
+          ) : (
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-3">
+                <div className="glow-ring rounded-lg">
+                  <Input
+                    type="email"
+                    placeholder="Email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    autoComplete="email"
+                    className="h-12 bg-input/50 border-0 text-base placeholder:text-muted-foreground/50"
+                  />
+                </div>
+                {mode !== "forgot" && (
+                  <div className="glow-ring rounded-lg relative">
+                    <Input
+                      type={showPassword ? "text" : "password"}
+                      placeholder="Пароль"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                      minLength={6}
+                      autoComplete={
+                        mode === "login" ? "current-password" : "new-password"
+                      }
+                      className="h-12 bg-input/50 border-0 text-base placeholder:text-muted-foreground/50 pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+                      aria-label={showPassword ? "Скрыть пароль" : "Показать пароль"}
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                )}
+                {mode === "signup" && password.length > 0 && password.length < 6 && (
+                  <p className="text-[11px] text-muted-foreground/60 px-1">
+                    Минимум 6 символов ({password.length}/6)
+                  </p>
+                )}
+              </div>
+
+              {error && (
+                <motion.p
+                  initial={{ opacity: 0, y: -5 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive"
+                >
+                  {error}
+                </motion.p>
+              )}
+
+              <Button
+                type="submit"
+                className="h-12 w-full gradient-primary text-base font-medium text-white border-0 hover:opacity-90 transition-opacity"
+                disabled={loading}
+              >
+                {loading ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : (
+                  <>
+                    {mode === "forgot" ? "Отправить ссылку" : mode === "login" ? "Войти" : "Создать аккаунт"}
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </>
+                )}
+              </Button>
+
+              {mode === "login" && (
                 <button
                   type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/50 hover:text-muted-foreground transition-colors"
-                  aria-label={showPassword ? "Скрыть пароль" : "Показать пароль"}
+                  className="w-full text-center text-xs text-muted-foreground/60 hover:text-primary transition-colors"
+                  onClick={() => { setMode("forgot"); setError(null); }}
                 >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  Забыл пароль?
                 </button>
-              </div>
-              {mode === "signup" && password.length > 0 && password.length < 6 && (
-                <p className="text-[11px] text-muted-foreground/60 px-1">
-                  Минимум 6 символов ({password.length}/6)
-                </p>
               )}
-            </div>
-
-            {error && (
-              <motion.p
-                initial={{ opacity: 0, y: -5 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive"
-              >
-                {error}
-              </motion.p>
-            )}
-
-            <Button
-              type="submit"
-              className="h-12 w-full gradient-primary text-base font-medium text-white border-0 hover:opacity-90 transition-opacity"
-              disabled={loading}
-            >
-              {loading ? (
-                <Loader2 className="h-5 w-5 animate-spin" />
-              ) : (
-                <>
-                  {mode === "login" ? "Войти" : "Создать аккаунт"}
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </>
-              )}
-            </Button>
-          </form>
+            </form>
+          )}
         </div>
 
         {/* Toggle mode */}
         <p className="mt-6 text-center text-sm text-muted-foreground">
-          {mode === "login" ? "Нет аккаунта?" : "Уже есть аккаунт?"}{" "}
-          <button
-            type="button"
-            className="font-medium text-primary hover:underline transition-colors"
-            onClick={() => {
-              setMode(mode === "login" ? "signup" : "login");
-              setError(null);
-            }}
-          >
-            {mode === "login" ? "Зарегистрируйся" : "Войди"}
-          </button>
+          {mode === "forgot" ? (
+            <button
+              type="button"
+              className="font-medium text-primary hover:underline transition-colors"
+              onClick={() => { setMode("login"); setError(null); setResetSent(false); }}
+            >
+              Вернуться ко входу
+            </button>
+          ) : (
+            <>
+              {mode === "login" ? "Нет аккаунта?" : "Уже есть аккаунт?"}{" "}
+              <button
+                type="button"
+                className="font-medium text-primary hover:underline transition-colors"
+                onClick={() => {
+                  setMode(mode === "login" ? "signup" : "login");
+                  setError(null);
+                }}
+              >
+                {mode === "login" ? "Зарегистрируйся" : "Войди"}
+              </button>
+            </>
+          )}
         </p>
       </motion.div>
     </div>

@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Send, Trash2, Search, X, Pencil, Check } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import type { Note } from "@/lib/supabase/types";
+import { toast } from "sonner";
 
 export default function JournalPage() {
   const [notes, setNotes] = useState<Note[]>([]);
@@ -55,13 +56,19 @@ export default function JournalPage() {
     if (data) {
       setNotes((prev) => [data, ...prev]);
       setNewNote("");
+    } else {
+      toast.error("Не удалось сохранить заметку");
     }
   }
+
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   async function deleteNote(id: string) {
     const supabase = createClient();
     setNotes((prev) => prev.filter((n) => n.id !== id));
-    await supabase.from("notes").delete().eq("id", id);
+    setConfirmDeleteId(null);
+    const { error } = await supabase.from("notes").delete().eq("id", id);
+    if (error) toast.error("Не удалось удалить заметку");
   }
 
   function startEdit(note: Note) {
@@ -231,12 +238,29 @@ export default function JournalPage() {
                             >
                               <Pencil className="h-3.5 w-3.5 text-muted-foreground/40 hover:text-primary" />
                             </button>
-                            <button
-                              onClick={() => deleteNote(note.id)}
-                              className="p-1 rounded-lg hover:bg-destructive/10 transition-all"
-                            >
-                              <Trash2 className="h-3.5 w-3.5 text-muted-foreground/40 hover:text-destructive" />
-                            </button>
+                            {confirmDeleteId === note.id ? (
+                              <div className="flex items-center gap-1">
+                                <button
+                                  onClick={() => deleteNote(note.id)}
+                                  className="px-1.5 py-0.5 text-[10px] rounded bg-destructive text-white"
+                                >
+                                  Да
+                                </button>
+                                <button
+                                  onClick={() => setConfirmDeleteId(null)}
+                                  className="px-1.5 py-0.5 text-[10px] rounded border border-border/50 text-muted-foreground"
+                                >
+                                  Нет
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => setConfirmDeleteId(note.id)}
+                                className="p-1 rounded-lg hover:bg-destructive/10 transition-all"
+                              >
+                                <Trash2 className="h-3.5 w-3.5 text-muted-foreground/40 hover:text-destructive" />
+                              </button>
+                            )}
                           </div>
                         </>
                       )}

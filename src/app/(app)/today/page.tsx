@@ -26,6 +26,7 @@ import {
 import { motion, AnimatePresence } from "motion/react";
 import type { Goal, Category, Task, TaskTemplate } from "@/lib/supabase/types";
 import { getRecurrenceLabel } from "@/lib/recurrence";
+import { toast } from "sonner";
 
 // Custom grip icon: 2 dots top, line middle, 2 dots bottom
 function GripIcon({ className }: { className?: string }) {
@@ -1305,6 +1306,7 @@ function CategoryGoalsDialog({
     }
 
     if (goalError) {
+      toast.error("Не удалось создать цель");
       setSaving(false);
       return;
     }
@@ -1909,6 +1911,7 @@ function EditGoalDialog({
     }
 
     setSaving(false);
+    toast.success("Цель обновлена");
     onDataChanged();
   }
 

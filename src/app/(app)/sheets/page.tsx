@@ -16,6 +16,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { toast } from "sonner";
 import {
   Dialog,
   DialogContent,
@@ -599,6 +600,7 @@ function TabHeader({ tab, onRename, onDelete }: {
 }) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(tab.name);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   useEffect(() => { setName(tab.name); }, [tab.name]);
 
@@ -632,15 +634,27 @@ function TabHeader({ tab, onRename, onDelete }: {
         </span>
       </div>
       {!tab.is_system && (
-        <Button
-          variant="ghost"
-          size="sm"
-          className="text-destructive hover:text-destructive hover:bg-destructive/10 h-7 text-xs"
-          onClick={onDelete}
-        >
-          <Trash2 className="h-3 w-3 mr-1" />
-          Удалить
-        </Button>
+        confirmDelete ? (
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-muted-foreground">Удалить?</span>
+            <Button size="sm" variant="destructive" className="h-6 text-xs px-2" onClick={() => { onDelete(); toast.success("Лист удалён"); }}>
+              Да
+            </Button>
+            <Button size="sm" variant="ghost" className="h-6 text-xs px-2" onClick={() => setConfirmDelete(false)}>
+              Нет
+            </Button>
+          </div>
+        ) : (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-destructive hover:text-destructive hover:bg-destructive/10 h-7 text-xs"
+            onClick={() => setConfirmDelete(true)}
+          >
+            <Trash2 className="h-3 w-3 mr-1" />
+            Удалить
+          </Button>
+        )
       )}
     </div>
   );
