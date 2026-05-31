@@ -461,14 +461,15 @@ function FreeformView({
   }
 
   return (
-    <div className="rounded-2xl border border-border/50 bg-card/80 p-4">
+    <div className="rounded-2xl border border-border/50 bg-card/80 p-4 overflow-hidden">
       <Textarea
         value={text}
         onChange={(e) => setText(e.target.value)}
         onBlur={handleSave}
         placeholder="Пиши здесь..."
         rows={12}
-        className="bg-transparent border-0 resize-none focus-visible:ring-0 text-sm"
+        className="bg-transparent border-0 resize-none focus-visible:ring-0 text-sm break-words overflow-wrap-anywhere"
+        style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
       />
     </div>
   );
@@ -599,8 +600,8 @@ function TabHeader({ tab, onRename, onDelete }: {
   useEffect(() => { setName(tab.name); }, [tab.name]);
 
   return (
-    <div className="flex items-center justify-between mb-3">
-      <div className="flex items-center gap-2">
+    <div className="flex items-center justify-between mb-3 min-w-0">
+      <div className="flex items-center gap-2 min-w-0 flex-1 mr-2">
         {editing ? (
           <input
             value={name}
@@ -610,16 +611,17 @@ function TabHeader({ tab, onRename, onDelete }: {
               if (e.key === "Enter") { if (name.trim()) onRename(name.trim()); setEditing(false); }
               if (e.key === "Escape") { setName(tab.name); setEditing(false); }
             }}
+            maxLength={40}
             autoFocus
-            className="text-sm font-medium bg-transparent border-b border-primary outline-none px-0 py-0"
+            className="text-sm font-medium bg-transparent border-b border-primary outline-none px-0 py-0 w-full max-w-[200px]"
           />
         ) : (
           <button
             onClick={() => setEditing(true)}
-            className="text-sm font-medium hover:text-primary transition-colors flex items-center gap-1.5 group"
+            className="text-sm font-medium hover:text-primary transition-colors flex items-center gap-1.5 group min-w-0"
           >
-            {tab.name}
-            <Pencil className="h-3 w-3 text-muted-foreground/0 group-hover:text-muted-foreground/50 transition-colors" />
+            <span className="truncate max-w-[200px]">{tab.name}</span>
+            <Pencil className="h-3 w-3 shrink-0 text-muted-foreground/0 group-hover:text-muted-foreground/50 transition-colors" />
           </button>
         )}
         <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
