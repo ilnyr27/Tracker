@@ -46,7 +46,7 @@ function getEmoji(cat: Category): string {
 }
 
 
-type ViewMode = "week" | "weekFromToday" | "month";
+type ViewMode = "week" | "weekFromToday" | "month" | "monthFromToday";
 type ChartType = "radar" | "donut" | "histogram";
 
 const CHART_TYPES: { id: ChartType; label: string; icon: typeof Radar }[] = [
@@ -68,14 +68,18 @@ export default function MatrixPage() {
 
   const rangeStart = viewMode === "month"
     ? startOfMonth(currentDate)
-    : viewMode === "weekFromToday"
+    : viewMode === "monthFromToday"
       ? startOfDay(currentDate)
-      : startOfWeek(currentDate, { weekStartsOn: 1 });
+      : viewMode === "weekFromToday"
+        ? startOfDay(currentDate)
+        : startOfWeek(currentDate, { weekStartsOn: 1 });
   const rangeEnd = viewMode === "month"
     ? endOfMonth(currentDate)
-    : viewMode === "weekFromToday"
-      ? addDays(startOfDay(currentDate), 6)
-      : endOfWeek(currentDate, { weekStartsOn: 1 });
+    : viewMode === "monthFromToday"
+      ? addDays(startOfDay(currentDate), 29)
+      : viewMode === "weekFromToday"
+        ? addDays(startOfDay(currentDate), 6)
+        : endOfWeek(currentDate, { weekStartsOn: 1 });
   const days = eachDayOfInterval({ start: rangeStart, end: rangeEnd });
 
   const startStr = format(rangeStart, "yyyy-MM-dd");
@@ -202,12 +206,12 @@ export default function MatrixPage() {
   }
 
   function navigateBack() {
-    if (viewMode === "month") setCurrentDate(subMonths(currentDate, 1));
+    if (viewMode === "month" || viewMode === "monthFromToday") setCurrentDate(subMonths(currentDate, 1));
     else setCurrentDate(subWeeks(currentDate, 1));
   }
 
   function navigateForward() {
-    if (viewMode === "month") setCurrentDate(addMonths(currentDate, 1));
+    if (viewMode === "month" || viewMode === "monthFromToday") setCurrentDate(addMonths(currentDate, 1));
     else setCurrentDate(addWeeks(currentDate, 1));
   }
 
@@ -287,36 +291,27 @@ export default function MatrixPage() {
           </Button>
         </div>
         <div className="flex rounded-xl border border-border/50 overflow-hidden text-xs" role="tablist" aria-label="Период отображения">
-          <button
-            role="tab"
-            aria-selected={viewMode === "week"}
-            onClick={() => setViewMode("week")}
-            className={`px-3 py-1.5 transition-colors ${
-              viewMode === "week" ? "bg-primary/10 text-primary font-medium" : "text-muted-foreground hover:bg-accent/50"
-            }`}
-          >
-            Пн–Вс
-          </button>
-          <button
-            role="tab"
-            aria-selected={viewMode === "weekFromToday"}
-            onClick={() => { setViewMode("weekFromToday"); setCurrentDate(new Date()); }}
-            className={`px-3 py-1.5 transition-colors ${
-              viewMode === "weekFromToday" ? "bg-primary/10 text-primary font-medium" : "text-muted-foreground hover:bg-accent/50"
-            }`}
-          >
-            От сегодня
-          </button>
-          <button
-            role="tab"
-            aria-selected={viewMode === "month"}
-            onClick={() => setViewMode("month")}
-            className={`px-3 py-1.5 transition-colors ${
-              viewMode === "month" ? "bg-primary/10 text-primary font-medium" : "text-muted-foreground hover:bg-accent/50"
-            }`}
-          >
-            Месяц
-          </button>
+          {([
+            { id: "week" as ViewMode, label: "Пн–Вс" },
+            { id: "weekFromToday" as ViewMode, label: "7 дн" },
+            { id: "month" as ViewMode, label: "Месяц" },
+            { id: "monthFromToday" as ViewMode, label: "30 дн" },
+          ] as const).map((tab) => (
+            <button
+              key={tab.id}
+              role="tab"
+              aria-selected={viewMode === tab.id}
+              onClick={() => {
+                setViewMode(tab.id);
+                if (tab.id === "weekFromToday" || tab.id === "monthFromToday") setCurrentDate(new Date());
+              }}
+              className={`px-2.5 py-1.5 transition-colors ${
+                viewMode === tab.id ? "bg-primary/10 text-primary font-medium" : "text-muted-foreground hover:bg-accent/50"
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -429,7 +424,7 @@ export default function MatrixPage() {
                                   <X className="h-3 w-3 text-red-400/70" strokeWidth={2.5} />
                                 </div>
                               ) : (
-                                <div className="h-5 w-5 rounded-md border border-border/30" />
+                                <div className="h-5 w-5 rounded-md border-2 border-border/50 bg-muted/30" />
                               )}
                             </button>
                           )}

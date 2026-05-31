@@ -8,7 +8,6 @@ import {
   Trash2,
   Check,
   Clock,
-  Pause,
   Archive,
   ListTodo,
 } from "lucide-react";
@@ -35,7 +34,7 @@ import type { Goal, Category } from "@/lib/supabase/types";
 type ColumnId = Goal["status"];
 
 const COLUMNS: { id: ColumnId; label: string; icon: typeof Check; color: string; emptyText: string }[] = [
-  { id: "deferred", label: "План", icon: Pause, color: "text-amber-500", emptyText: "Добавь задачи в план" },
+  { id: "deferred", label: "План", icon: ListTodo, color: "text-amber-500", emptyText: "Добавь задачи в план" },
   { id: "active", label: "В работе", icon: Clock, color: "text-blue-500", emptyText: "Нет активных задач" },
   { id: "completed", label: "Готово", icon: Check, color: "text-green-500", emptyText: "Пока ничего не завершено" },
   { id: "cancelled", label: "Архив", icon: Archive, color: "text-muted-foreground", emptyText: "Архив пуст" },
