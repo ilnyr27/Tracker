@@ -10,11 +10,11 @@ import {
   Trash2,
   Archive,
   Pencil,
-  MoreHorizontal,
+  GripVertical,
   Bell,
   LayoutGrid,
   List,
-  ChevronRight,
+  ChevronDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -82,8 +82,10 @@ export default function MainPage() {
   const [editingCatId, setEditingCatId] = useState<string | null>(null);
   const [editCatName, setEditCatName] = useState("");
   const [catMenuOpen, setCatMenuOpen] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
-  const [allGoalsOpen, setAllGoalsOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<"grid" | "list">("list");
+  const [showGoals, setShowGoals] = useState(false);
+  const [dragCatId, setDragCatId] = useState<string | null>(null);
+  const [dragOverCatId, setDragOverCatId] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -210,6 +212,32 @@ export default function MainPage() {
     loadData();
   }
 
+  async function handleDrop(targetId: string) {
+    if (!dragCatId || dragCatId === targetId) {
+      setDragCatId(null);
+      setDragOverCatId(null);
+      return;
+    }
+    const oldIdx = categories.findIndex((c) => c.id === dragCatId);
+    const newIdx = categories.findIndex((c) => c.id === targetId);
+    if (oldIdx === -1 || newIdx === -1) return;
+
+    const reordered = [...categories];
+    const [moved] = reordered.splice(oldIdx, 1);
+    reordered.splice(newIdx, 0, moved);
+    setCategories(reordered);
+    setDragCatId(null);
+    setDragOverCatId(null);
+
+    // Persist new order
+    const supabase = createClient();
+    await Promise.all(
+      reordered.map((cat, i) =>
+        supabase.from("categories").update({ sort_order: i }).eq("id", cat.id)
+      )
+    );
+  }
+
   return (
     <div className="mx-auto max-w-3xl px-4 py-6 pb-28 md:px-6 md:pb-6">
       {/* Header */}
@@ -221,12 +249,15 @@ export default function MainPage() {
           </p>
         </div>
         <div className="flex items-center gap-1.5">
-          <button
-            onClick={() => setAllGoalsOpen(true)}
-            className="px-3 py-1.5 rounded-lg text-xs font-medium text-primary hover:bg-primary/10 transition-colors"
-          >
-            Все цели
-          </button>
+          {viewMode === "list" && (
+            <button
+              onClick={() => setShowGoals(!showGoals)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1 ${showGoals ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-accent/50"}`}
+            >
+              Все цели
+              <ChevronDown className={`h-3 w-3 transition-transform ${showGoals ? "rotate-180" : ""}`} />
+            </button>
+          )}
           <div className="flex bg-muted rounded-lg p-0.5">
             <button
               onClick={() => setViewMode("grid")}
@@ -274,81 +305,112 @@ export default function MainPage() {
                   <motion.div
                     key={cat.id}
                     variants={item}
-                    className="relative rounded-2xl border border-border/40 bg-card hover:shadow-md hover:border-border/60 transition-all overflow-hidden"
+                    draggable
+                    onDragStart={() => setDragCatId(cat.id)}
+                    onDragOver={(e) => { e.preventDefault(); setDragOverCatId(cat.id); }}
+                    onDragEnd={() => { setDragCatId(null); setDragOverCatId(null); }}
+                    onDrop={(e) => { e.preventDefault(); handleDrop(cat.id); }}
+                    className={`relative rounded-2xl border bg-card transition-all overflow-hidden ${
+                      dragOverCatId === cat.id && dragCatId !== cat.id
+                        ? "border-primary/50 shadow-md"
+                        : dragCatId === cat.id
+                          ? "opacity-50 border-border/30"
+                          : "border-border/40 hover:shadow-md hover:border-border/60"
+                    }`}
                   >
                     <div
                       className="absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl"
                       style={{ backgroundColor: cat.color || "#666" }}
                     />
-                    <button
-                      onClick={() => { setCatMenuOpen(null); openAddGoal(cat.id); }}
-                      className="flex items-center gap-3 w-full px-4 pl-5 py-3 text-left"
-                    >
+                    <div className="flex items-center">
+                      {/* Grip handle for drag */}
                       <div
-                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-xl"
-                        style={{ backgroundColor: `${cat.color || "var(--primary)"}15` }}
+                        className="pl-3 pr-1 py-3 cursor-grab active:cursor-grabbing text-muted-foreground/30 hover:text-muted-foreground/60 transition-colors touch-none"
+                        onTouchStart={(e) => {
+                          // Touch drag support
+                          const el = e.currentTarget.closest('[draggable]') as HTMLElement;
+                          if (el) {
+                            setDragCatId(cat.id);
+                          }
+                        }}
                       >
-                        {emoji}
+                        <GripVertical className="h-4 w-4" />
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <span className="text-sm font-semibold block truncate">{cat.name}</span>
-                        <span className="text-xs text-muted-foreground/60">
-                          {goalsCount} {goalsCount === 1 ? "цель" : goalsCount < 5 ? "цели" : "целей"}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-3 shrink-0">
-                        <div className="w-20 h-1.5 rounded-full bg-muted overflow-hidden">
-                          <motion.div
-                            className="h-full rounded-full"
-                            style={{ backgroundColor: cat.color || "var(--primary)" }}
-                            initial={{ width: 0 }}
-                            animate={{ width: `${percent}%` }}
-                            transition={{ duration: 0.8, ease: "easeOut" }}
-                          />
+
+                      {/* Main clickable area */}
+                      <button
+                        onClick={() => { setCatMenuOpen(null); openAddGoal(cat.id); }}
+                        className="flex items-center gap-3 flex-1 pr-4 py-3 text-left min-w-0"
+                      >
+                        <div
+                          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-xl"
+                          style={{ backgroundColor: `${cat.color || "var(--primary)"}15` }}
+                        >
+                          {emoji}
                         </div>
-                        <span
-                          className="text-sm font-bold tabular-nums w-10 text-right"
-                          style={{ color: cat.color || "var(--primary)" }}
-                        >
-                          {percent}%
-                        </span>
-                        <ChevronRight className="h-4 w-4 text-muted-foreground/30" />
-                      </div>
-                    </button>
-                    {/* Menu for list view */}
-                    <button
-                      onClick={(e) => { e.stopPropagation(); setCatMenuOpen(catMenuOpen === cat.id ? null : cat.id); }}
-                      className="absolute top-2 right-2 p-1.5 rounded-lg text-muted-foreground/30 hover:text-muted-foreground hover:bg-accent/60 transition-all z-10"
-                    >
-                      <MoreHorizontal className="h-3.5 w-3.5" />
-                    </button>
+                        <div className="flex-1 min-w-0">
+                          <span className="text-sm font-semibold block truncate">{cat.name}</span>
+                          <span className="text-xs text-muted-foreground/60">
+                            {goalsCount} {goalsCount === 1 ? "цель" : goalsCount < 5 ? "цели" : "целей"}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-3 shrink-0">
+                          <div className="w-16 h-1.5 rounded-full bg-muted overflow-hidden hidden sm:block">
+                            <motion.div
+                              className="h-full rounded-full"
+                              style={{ backgroundColor: cat.color || "var(--primary)" }}
+                              initial={{ width: 0 }}
+                              animate={{ width: `${percent}%` }}
+                              transition={{ duration: 0.8, ease: "easeOut" }}
+                            />
+                          </div>
+                          <span
+                            className="text-sm font-bold tabular-nums"
+                            style={{ color: cat.color || "var(--primary)" }}
+                          >
+                            {percent}%
+                          </span>
+                        </div>
+                      </button>
+                    </div>
+
+                    {/* Expanded goals list */}
                     <AnimatePresence>
-                      {catMenuOpen === cat.id && (
+                      {showGoals && catGoals.length > 0 && (
                         <motion.div
-                          initial={{ opacity: 0, scale: 0.9 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          exit={{ opacity: 0, scale: 0.9 }}
-                          transition={{ duration: 0.15 }}
-                          className="absolute top-9 right-2 z-20 bg-popover border border-border/50 rounded-xl shadow-lg py-1 min-w-[140px]"
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: "auto", opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.2 }}
+                          className="overflow-hidden"
                         >
-                          <button
-                            onClick={(e) => { e.stopPropagation(); setCatMenuOpen(null); setEditingCatId(cat.id); setEditCatName(cat.name); setGoalDialogCatId(cat.id); setGoalDialogOpen(true); }}
-                            className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-accent/50 transition-colors"
-                          >
-                            <Pencil className="h-3.5 w-3.5" /> Переименовать
-                          </button>
-                          <button
-                            onClick={(e) => { e.stopPropagation(); archiveCategory(cat.id); setCatMenuOpen(null); }}
-                            className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-accent/50 text-amber-500 transition-colors"
-                          >
-                            <Archive className="h-3.5 w-3.5" /> В архив
-                          </button>
-                          <button
-                            onClick={(e) => { e.stopPropagation(); deleteCategory(cat.id); setCatMenuOpen(null); }}
-                            className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-destructive/10 text-destructive transition-colors"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" /> Удалить
-                          </button>
+                          <div className="border-t border-border/20 px-4 pl-12 pb-2 pt-1">
+                            {catGoals.map((goal, idx) => {
+                              const prog = goalProgress.get(goal.id);
+                              const isHabit = goal.tracking_type === "habit";
+                              const done = prog?.done || 0;
+                              const target = goal.target_days || 0;
+                              const isInfinite = target >= 99999;
+                              return (
+                                <div
+                                  key={goal.id}
+                                  className="flex items-center gap-2 py-1.5 text-sm"
+                                >
+                                  <span className="text-xs text-muted-foreground/40 w-4 shrink-0">{idx + 1}.</span>
+                                  <span className="flex-1 truncate">{goal.title}</span>
+                                  {isHabit ? (
+                                    <span className="text-[11px] text-muted-foreground tabular-nums shrink-0">
+                                      {done}/{isInfinite ? "∞" : target}
+                                    </span>
+                                  ) : (
+                                    <span className={`text-[11px] shrink-0 ${goal.status === "completed" ? "text-green-500" : "text-muted-foreground/50"}`}>
+                                      {goal.status === "completed" ? "Готово" : "В процессе"}
+                                    </span>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
                         </motion.div>
                       )}
                     </AnimatePresence>
@@ -363,12 +425,12 @@ export default function MainPage() {
                   variants={item}
                   className="relative rounded-3xl border border-border/40 bg-card p-5 flex flex-col items-start text-left gap-3 hover:shadow-lg hover:border-border/60 transition-all min-h-[160px]"
                 >
-                  {/* Menu button — always visible */}
+                  {/* Menu button */}
                   <button
                     onClick={(e) => { e.stopPropagation(); setCatMenuOpen(catMenuOpen === cat.id ? null : cat.id); }}
                     className="absolute top-2.5 right-2.5 p-1.5 rounded-lg text-muted-foreground/40 hover:text-muted-foreground hover:bg-accent/60 transition-all z-10"
                   >
-                    <MoreHorizontal className="h-4 w-4" />
+                    <GripVertical className="h-4 w-4" />
                   </button>
 
                   {/* Dropdown menu */}
@@ -567,62 +629,6 @@ export default function MainPage() {
         </DialogContent>
       </Dialog>
 
-      {/* All Goals dialog */}
-      <Dialog open={allGoalsOpen} onOpenChange={setAllGoalsOpen}>
-        <DialogContent className="sm:max-w-lg bg-card border-border/50 max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="text-lg">Все цели</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            {categories.map((cat) => {
-              const catGoals = goalsByCategory.get(cat.id) || [];
-              if (catGoals.length === 0) return null;
-              const emoji = getEmoji(cat);
-              return (
-                <div key={cat.id}>
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="text-lg">{emoji}</span>
-                    <span className="text-sm font-semibold" style={{ color: cat.color || undefined }}>{cat.name}</span>
-                    <span className="text-xs text-muted-foreground/50">({catGoals.length})</span>
-                  </div>
-                  <div className="space-y-1 pl-7">
-                    {catGoals.map((goal) => {
-                      const prog = goalProgress.get(goal.id);
-                      const isHabit = goal.tracking_type === "habit";
-                      const done = prog?.done || 0;
-                      const target = goal.target_days || 0;
-                      const isInfinite = target >= 99999;
-                      return (
-                        <div
-                          key={goal.id}
-                          className="flex items-center gap-2 py-1.5 px-2 rounded-lg hover:bg-accent/30 transition-colors cursor-pointer"
-                          onClick={() => { setAllGoalsOpen(false); setGoalDialogCatId(cat.id); setGoalDialogOpen(true); }}
-                        >
-                          <div className="flex-1 min-w-0">
-                            <span className="text-sm truncate block">{goal.title}</span>
-                          </div>
-                          {isHabit ? (
-                            <span className="text-xs text-muted-foreground tabular-nums shrink-0">
-                              {done}/{isInfinite ? "∞" : target}
-                            </span>
-                          ) : (
-                            <span className={`text-xs shrink-0 ${goal.status === "completed" ? "text-green-500" : "text-muted-foreground"}`}>
-                              {goal.status === "completed" ? "Готово" : "В процессе"}
-                            </span>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })}
-            {goals.length === 0 && (
-              <p className="text-sm text-muted-foreground text-center py-8">Целей пока нет</p>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
