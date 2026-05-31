@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import {
   Target,
@@ -30,20 +30,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { motion } from "motion/react";
-import {
-  DndContext,
-  PointerSensor,
-  TouchSensor,
-  useSensor,
-  useSensors,
-  useDroppable,
-  useDraggable,
-  pointerWithin,
-  rectIntersection,
-  type DragEndEvent,
-  type CollisionDetection,
-} from "@dnd-kit/core";
 import type { Goal, Category } from "@/lib/supabase/types";
 
 // ── Column config ──
@@ -52,7 +38,7 @@ type ColumnId = Goal["status"];
 const COLUMNS: { id: ColumnId; label: string; icon: typeof Check; color: string; emptyText: string }[] = [
   { id: "deferred", label: "План", icon: Pause, color: "text-amber-500", emptyText: "Добавь задачи в план" },
   { id: "active", label: "В работе", icon: Clock, color: "text-blue-500", emptyText: "Нет активных задач" },
-  { id: "completed", label: "Завершённые", icon: Check, color: "text-green-500", emptyText: "Пока ничего не завершено" },
+  { id: "completed", label: "Готово", icon: Check, color: "text-green-500", emptyText: "Пока ничего не завершено" },
   { id: "cancelled", label: "Архив", icon: Archive, color: "text-muted-foreground", emptyText: "Архив пуст" },
 ];
 
@@ -77,15 +63,8 @@ export default function GoalsPage() {
   const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
   const [filterCategory, setFilterCategory] = useState<string>("all");
   const [kanbanMode, setKanbanMode] = useState<KanbanMode>("tasks");
-
-  // DnD sensors: pointer (mouse) + touch (mobile)
-  const pointerSensor = useSensor(PointerSensor, {
-    activationConstraint: { distance: 8 },
-  });
-  const touchSensor = useSensor(TouchSensor, {
-    activationConstraint: { delay: 200, tolerance: 5 },
-  });
-  const sensors = useSensors(pointerSensor, touchSensor);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [overColumn, setOverColumn] = useState<ColumnId | null>(null);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -140,39 +119,54 @@ export default function GoalsPage() {
     setDialogOpen(true);
   }
 
-  // ── DnD handlers ──
-  // Custom collision: prefer pointerWithin, fall back to rectIntersection
-  const collisionDetection: CollisionDetection = (args) => {
-    const pointerCollisions = pointerWithin(args);
-    if (pointerCollisions.length > 0) return pointerCollisions;
-    return rectIntersection(args);
-  };
-
-  function handleDragEnd(event: DragEndEvent) {
-    const { active, over } = event;
-    if (!over) return;
-
-    const goalId = active.id as string;
-    const overId = over.id as string;
-
-    // Only columns are droppable — overId is always a column id
-    const targetColumn = COLUMNS.find((c) => c.id === overId)?.id ?? null;
-
-    if (targetColumn) {
-      const currentGoal = goals.find((g) => g.id === goalId);
-      if (currentGoal && currentGoal.status !== targetColumn) {
-        moveGoal(goalId, targetColumn);
-      }
+  // ── Native DnD handlers ──
+  function handleDragStart(e: React.DragEvent, goalId: string) {
+    setDraggingId(goalId);
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", goalId);
+    // Make the drag image semi-transparent
+    if (e.currentTarget instanceof HTMLElement) {
+      e.currentTarget.style.opacity = "0.5";
     }
   }
 
-  // Filter goals by mode: "tasks" = standalone (no category), "goals" = from categories
+  function handleDragEnd(e: React.DragEvent) {
+    if (e.currentTarget instanceof HTMLElement) {
+      e.currentTarget.style.opacity = "1";
+    }
+    setDraggingId(null);
+    setOverColumn(null);
+  }
+
+  function handleColumnDragOver(e: React.DragEvent, columnId: ColumnId) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    setOverColumn(columnId);
+  }
+
+  function handleColumnDragLeave() {
+    setOverColumn(null);
+  }
+
+  function handleColumnDrop(e: React.DragEvent, columnId: ColumnId) {
+    e.preventDefault();
+    const goalId = e.dataTransfer.getData("text/plain");
+    if (goalId) {
+      const goal = goals.find((g) => g.id === goalId);
+      if (goal && goal.status !== columnId) {
+        moveGoal(goalId, columnId);
+      }
+    }
+    setDraggingId(null);
+    setOverColumn(null);
+  }
+
+  // Filter goals by mode
   const modeGoals = goals.filter((g) => {
     if (kanbanMode === "tasks") return !g.category_id;
     return !!g.category_id;
   });
 
-  // Further filter by category (only relevant in "goals" mode)
   const filteredGoals = modeGoals.filter((g) => {
     if (kanbanMode === "goals" && filterCategory !== "all" && g.category_id !== filterCategory) return false;
     return true;
@@ -201,45 +195,46 @@ export default function GoalsPage() {
   return (
     <div className="flex flex-col h-[calc(100vh-80px)] md:h-screen">
       {/* Header */}
-      <div className="px-4 py-5 md:px-6 border-b border-border/50 bg-background/80 backdrop-blur-sm">
+      <div className="px-4 py-4 md:px-6 border-b border-border/50 bg-background/80 backdrop-blur-sm">
         <div className="max-w-7xl mx-auto">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between mb-3">
             <div>
-              <h1 className="text-2xl font-bold gradient-text tracking-tight">Канбан</h1>
-              <p className="text-sm text-muted-foreground mt-1">
+              <h1 className="text-xl font-bold gradient-text tracking-tight">Канбан</h1>
+              <p className="text-xs text-muted-foreground mt-0.5">
                 {totalGoals > 0
                   ? `${completedGoals} из ${totalGoals} выполнено`
                   : kanbanMode === "tasks" ? "Создавай задачи и двигай по колонкам" : "Цели из категорий на главном экране"}
               </p>
             </div>
             <Button
-              className="h-11 gradient-primary text-white border-0 hover:opacity-90 rounded-xl"
+              size="sm"
+              className="gradient-primary text-white border-0 hover:opacity-90 rounded-xl"
               onClick={openCreate}
             >
-              <Plus className="h-4 w-4 mr-2" />
+              <Plus className="h-4 w-4 mr-1.5" />
               {kanbanMode === "tasks" ? "Задача" : "Цель"}
             </Button>
           </div>
 
           {/* Mode toggle */}
-          <div className="flex items-center gap-2 mb-3">
+          <div className="flex items-center gap-2 mb-2">
             <div className="flex rounded-xl border border-border/50 overflow-hidden text-xs">
               <button
                 onClick={() => { setKanbanMode("tasks"); setFilterCategory("all"); }}
-                className={`flex items-center gap-1.5 px-4 py-2 transition-colors ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 transition-colors ${
                   kanbanMode === "tasks" ? "bg-primary/10 text-primary font-medium" : "text-muted-foreground hover:bg-accent/50"
                 }`}
               >
-                <ListTodo className="h-3.5 w-3.5" />
+                <ListTodo className="h-3 w-3" />
                 Мои задачи
               </button>
               <button
                 onClick={() => setKanbanMode("goals")}
-                className={`flex items-center gap-1.5 px-4 py-2 transition-colors ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 transition-colors ${
                   kanbanMode === "goals" ? "bg-primary/10 text-primary font-medium" : "text-muted-foreground hover:bg-accent/50"
                 }`}
               >
-                <Target className="h-3.5 w-3.5" />
+                <Target className="h-3 w-3" />
                 По целям
               </button>
             </div>
@@ -247,10 +242,10 @@ export default function GoalsPage() {
 
           {/* Category filter (only in goals mode) */}
           {kanbanMode === "goals" && categories.length > 0 && (
-            <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+            <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1">
               <button
                 onClick={() => setFilterCategory("all")}
-                className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                className={`shrink-0 px-2.5 py-1 rounded-full text-[11px] font-medium transition-all ${
                   filterCategory === "all"
                     ? "bg-primary text-primary-foreground"
                     : "bg-muted text-muted-foreground hover:bg-muted/80"
@@ -262,7 +257,7 @@ export default function GoalsPage() {
                 <button
                   key={cat.id}
                   onClick={() => setFilterCategory(cat.id)}
-                  className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                  className={`shrink-0 px-2.5 py-1 rounded-full text-[11px] font-medium transition-all ${
                     filterCategory === cat.id
                       ? "text-white"
                       : "bg-muted text-muted-foreground hover:bg-muted/80"
@@ -281,60 +276,66 @@ export default function GoalsPage() {
         </div>
       </div>
 
-{/* No mobile tabs — all columns visible via horizontal scroll */}
-
-      {/* Kanban board with DnD */}
+      {/* Kanban board */}
       {loading ? (
-        <div className="flex-1 p-4 grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="flex-1 p-4 grid grid-cols-1 md:grid-cols-4 gap-3">
           {COLUMNS.map((col) => (
-            <div key={col.id} className="space-y-3">
-              <div className="h-8 bg-muted rounded-lg animate-pulse" />
-              <div className="h-24 bg-card rounded-xl animate-pulse" />
-              <div className="h-24 bg-card rounded-xl animate-pulse" />
+            <div key={col.id} className="space-y-2">
+              <div className="h-7 bg-muted rounded-lg animate-pulse" />
+              <div className="h-20 bg-card rounded-xl animate-pulse" />
+              <div className="h-20 bg-card rounded-xl animate-pulse" />
             </div>
           ))}
         </div>
       ) : (
-        <DndContext
-          sensors={sensors}
-          collisionDetection={collisionDetection}
-          onDragEnd={handleDragEnd}
-        >
-          <div className="flex-1 overflow-auto">
-            {/* Desktop: all columns */}
-            <div className="hidden md:grid md:grid-cols-4 gap-4 p-4 md:p-6 max-w-7xl mx-auto h-full">
+        <div className="flex-1 overflow-auto">
+          {/* Desktop: all columns */}
+          <div className="hidden md:grid md:grid-cols-4 gap-3 p-4 md:p-5 max-w-7xl mx-auto h-full">
+            {COLUMNS.map((col) => (
+              <KanbanColumn
+                key={col.id}
+                column={col}
+                goals={goalsByColumn[col.id]}
+                catMap={catMap}
+                onMove={moveGoal}
+                onEdit={openEdit}
+                onDelete={deleteGoal}
+                isOver={overColumn === col.id}
+                isDragging={!!draggingId}
+                onDragStart={handleDragStart}
+                onDragEnd={handleDragEnd}
+                onDragOver={handleColumnDragOver}
+                onDragLeave={handleColumnDragLeave}
+                onDrop={handleColumnDrop}
+              />
+            ))}
+          </div>
+
+          {/* Mobile: horizontal scroll */}
+          <div className="md:hidden overflow-x-auto pb-28">
+            <div className="flex gap-3 p-4 min-w-max">
               {COLUMNS.map((col) => (
-                <DroppableColumn
-                  key={col.id}
-                  column={col}
-                  goals={goalsByColumn[col.id]}
-                  catMap={catMap}
-                  onMove={moveGoal}
-                  onEdit={openEdit}
-                  onDelete={deleteGoal}
-                />
+                <div key={col.id} className="w-[75vw] shrink-0">
+                  <KanbanColumn
+                    column={col}
+                    goals={goalsByColumn[col.id]}
+                    catMap={catMap}
+                    onMove={moveGoal}
+                    onEdit={openEdit}
+                    onDelete={deleteGoal}
+                    isOver={overColumn === col.id}
+                    isDragging={!!draggingId}
+                    onDragStart={handleDragStart}
+                    onDragEnd={handleDragEnd}
+                    onDragOver={handleColumnDragOver}
+                    onDragLeave={handleColumnDragLeave}
+                    onDrop={handleColumnDrop}
+                  />
+                </div>
               ))}
             </div>
-
-            {/* Mobile: horizontal scroll showing all columns */}
-            <div className="md:hidden overflow-x-auto pb-28">
-              <div className="flex gap-4 p-4 min-w-max">
-                {COLUMNS.map((col) => (
-                  <div key={col.id} className="w-[75vw] shrink-0">
-                    <DroppableColumn
-                      column={col}
-                      goals={goalsByColumn[col.id]}
-                      catMap={catMap}
-                      onMove={moveGoal}
-                      onEdit={openEdit}
-                      onDelete={deleteGoal}
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
           </div>
-        </DndContext>
+        </div>
       )}
 
       {/* Create/Edit Dialog */}
@@ -351,14 +352,21 @@ export default function GoalsPage() {
   );
 }
 
-// ── Droppable Column ──
-function DroppableColumn({
+// ── Column ──
+function KanbanColumn({
   column,
   goals,
   catMap,
   onMove,
   onEdit,
   onDelete,
+  isOver,
+  isDragging,
+  onDragStart,
+  onDragEnd,
+  onDragOver,
+  onDragLeave,
+  onDrop,
 }: {
   column: (typeof COLUMNS)[number];
   goals: Goal[];
@@ -366,38 +374,46 @@ function DroppableColumn({
   onMove: (id: string, status: ColumnId) => void;
   onEdit: (g: Goal) => void;
   onDelete: (id: string) => void;
+  isOver: boolean;
+  isDragging: boolean;
+  onDragStart: (e: React.DragEvent, goalId: string) => void;
+  onDragEnd: (e: React.DragEvent) => void;
+  onDragOver: (e: React.DragEvent, columnId: ColumnId) => void;
+  onDragLeave: () => void;
+  onDrop: (e: React.DragEvent, columnId: ColumnId) => void;
 }) {
-  const { isOver, setNodeRef } = useDroppable({ id: column.id });
   const Icon = column.icon;
 
   return (
     <div
-      ref={setNodeRef}
-      className={`flex flex-col min-h-[200px] rounded-2xl transition-all duration-200 p-2 ${
+      onDragOver={(e) => onDragOver(e, column.id)}
+      onDragLeave={onDragLeave}
+      onDrop={(e) => onDrop(e, column.id)}
+      className={`flex flex-col min-h-[180px] rounded-2xl transition-all duration-200 p-2 ${
         isOver
-          ? "bg-primary/5 ring-2 ring-primary/30"
-          : ""
+          ? "bg-primary/8 ring-2 ring-primary/40 scale-[1.01]"
+          : isDragging
+            ? "bg-accent/20 ring-1 ring-border/40 ring-dashed"
+            : ""
       }`}
     >
       {/* Column header */}
-      {(
-        <div className="flex items-center gap-2 mb-3 px-1">
-          <Icon className={`h-4 w-4 ${column.color}`} />
-          <span className="text-sm font-semibold">{column.label}</span>
-          <span className="text-xs text-muted-foreground/60 ml-auto">{goals.length}</span>
-        </div>
-      )}
+      <div className="flex items-center gap-1.5 mb-2 px-1">
+        <Icon className={`h-3.5 w-3.5 ${column.color}`} />
+        <span className="text-xs font-semibold">{column.label}</span>
+        <span className="text-[10px] text-muted-foreground/50 ml-auto">{goals.length}</span>
+      </div>
 
       {/* Cards */}
-      <div className="space-y-3 flex-1 overflow-y-auto pr-1">
+      <div className="space-y-2 flex-1 overflow-y-auto">
         {goals.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12 text-center">
-            <Icon className="h-8 w-8 text-muted-foreground/20 mb-2" />
-            <p className="text-sm text-muted-foreground/40">{column.emptyText}</p>
+          <div className="flex flex-col items-center justify-center py-10 text-center">
+            <Icon className="h-6 w-6 text-muted-foreground/15 mb-1.5" />
+            <p className="text-[11px] text-muted-foreground/30">{column.emptyText}</p>
           </div>
         ) : (
           goals.map((goal) => (
-            <DraggableCard
+            <GoalCard
               key={goal.id}
               goal={goal}
               catMap={catMap}
@@ -405,6 +421,8 @@ function DroppableColumn({
               onMove={onMove}
               onEdit={onEdit}
               onDelete={onDelete}
+              onDragStart={onDragStart}
+              onDragEnd={onDragEnd}
             />
           ))
         )}
@@ -413,14 +431,16 @@ function DroppableColumn({
   );
 }
 
-// ── Draggable Card ──
-function DraggableCard({
+// ── Card ──
+function GoalCard({
   goal,
   catMap,
   currentColumn,
   onMove,
   onEdit,
   onDelete,
+  onDragStart,
+  onDragEnd,
 }: {
   goal: Goal;
   catMap: Map<string, Category>;
@@ -428,115 +448,94 @@ function DraggableCard({
   onMove: (id: string, status: ColumnId) => void;
   onEdit: (g: Goal) => void;
   onDelete: (id: string) => void;
+  onDragStart: (e: React.DragEvent, goalId: string) => void;
+  onDragEnd: (e: React.DragEvent) => void;
 }) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
-    id: goal.id,
-  });
-
   const cat = goal.category_id ? catMap.get(goal.category_id) : null;
   const isCompleted = goal.status === "completed";
   const isArchived = goal.status === "cancelled";
   const moveTargets = COLUMNS.filter((c) => c.id !== currentColumn);
 
-  // Prevent drag start on interactive elements
-  const stopDrag = (e: React.PointerEvent) => e.stopPropagation();
-
-  const dragStyle: React.CSSProperties | undefined = transform
-    ? {
-        transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
-        zIndex: 50,
-        position: "relative",
-      }
-    : undefined;
-
   return (
     <div
-      ref={setNodeRef}
-      style={dragStyle}
-      {...attributes}
-      {...listeners}
-      className={`group rounded-xl border bg-card p-4 transition-none cursor-grab active:cursor-grabbing ${
-        isDragging
-          ? "shadow-2xl shadow-primary/20 ring-2 ring-primary/30 rotate-1 scale-105"
-          : "hover:shadow-md transition-shadow"
-      } ${
+      draggable
+      onDragStart={(e) => onDragStart(e, goal.id)}
+      onDragEnd={onDragEnd}
+      className={`group rounded-xl border bg-card p-3 cursor-grab active:cursor-grabbing transition-shadow hover:shadow-md ${
         isCompleted
           ? "border-green-500/20 opacity-80"
           : isArchived
             ? "border-border/30 opacity-60"
-            : "border-border/40 hover:border-border/70"
+            : "border-border/40 hover:border-border/60"
       }`}
     >
       {/* Top row */}
-      <div className="flex items-center gap-2 mb-2">
-        <GripVertical className="h-4 w-4 text-muted-foreground/20 shrink-0" />
+      <div className="flex items-center gap-1.5 mb-1.5">
+        <GripVertical className="h-3.5 w-3.5 text-muted-foreground/20 shrink-0" />
         {cat && (
           <div
-            className="h-2 w-2 rounded-full shrink-0"
+            className="h-1.5 w-1.5 rounded-full shrink-0"
             style={{ backgroundColor: cat.color || "#666" }}
           />
         )}
         {cat && (
-          <span className="text-xs text-muted-foreground truncate">
+          <span className="text-[10px] text-muted-foreground truncate">
             {cat.name}
           </span>
         )}
-        <Badge variant="outline" className="text-[10px] px-1.5 py-0 ml-auto shrink-0">
+        <Badge variant="outline" className="text-[9px] px-1 py-0 ml-auto shrink-0 leading-tight">
           {LEVEL_LABELS[goal.level]}
         </Badge>
       </div>
 
-      {/* Title — clickable to edit */}
+      {/* Title */}
       <h3
-        className={`text-sm font-medium leading-snug mb-2 cursor-pointer hover:text-primary transition-colors ${
+        className={`text-[13px] font-medium leading-snug mb-1 cursor-pointer hover:text-primary transition-colors ${
           isCompleted ? "line-through text-muted-foreground/60" : ""
         }`}
-        onPointerDown={stopDrag}
         onClick={() => onEdit(goal)}
       >
         {goal.title}
       </h3>
 
-      {/* Description preview */}
+      {/* Description */}
       {goal.description && (
-        <p className="text-xs text-muted-foreground/60 line-clamp-2 mb-3">
+        <p className="text-[10px] text-muted-foreground/50 line-clamp-2 mb-2">
           {goal.description}
         </p>
       )}
 
-      {/* Date info */}
+      {/* Date */}
       {(goal.target_date || goal.completed_at) && (
-        <div className="flex items-center gap-1 text-[11px] text-muted-foreground/50 mb-3">
-          <Clock className="h-3 w-3" />
+        <div className="flex items-center gap-1 text-[10px] text-muted-foreground/40 mb-2">
+          <Clock className="h-2.5 w-2.5" />
           {goal.completed_at
-            ? `Завершена ${new Date(goal.completed_at).toLocaleDateString("ru-RU")}`
+            ? `${new Date(goal.completed_at).toLocaleDateString("ru-RU")}`
             : `до ${new Date(goal.target_date!).toLocaleDateString("ru-RU")}`}
         </div>
       )}
 
-      {/* Actions row */}
-      <div className="flex items-center gap-1 pt-2 border-t border-border/30" onPointerDown={stopDrag}>
+      {/* Compact action buttons */}
+      <div className="flex items-center gap-0.5 pt-1.5 border-t border-border/20">
         {moveTargets.map((target) => {
           const TIcon = target.icon;
           return (
             <button
               key={target.id}
-              onClick={() => onMove(goal.id, target.id)}
-              className={`flex items-center gap-1 px-2 py-1.5 rounded-lg text-[11px] transition-all hover:bg-accent/50 ${target.color}`}
-              title={`Переместить в "${target.label}"`}
+              onClick={(e) => { e.stopPropagation(); onMove(goal.id, target.id); }}
+              className={`p-1 rounded-md transition-colors hover:bg-accent/60 ${target.color}`}
+              title={target.label}
             >
               <TIcon className="h-3 w-3" />
-              <span className="hidden sm:inline">{target.label}</span>
             </button>
           );
         })}
-
         <button
-          onClick={() => onDelete(goal.id)}
-          className="ml-auto p-1.5 rounded-lg text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-all"
+          onClick={(e) => { e.stopPropagation(); onDelete(goal.id); }}
+          className="ml-auto p-1 rounded-md text-muted-foreground/30 hover:text-destructive hover:bg-destructive/10 transition-colors"
           title="Удалить"
         >
-          <Trash2 className="h-3.5 w-3.5" />
+          <Trash2 className="h-3 w-3" />
         </button>
       </div>
     </div>
