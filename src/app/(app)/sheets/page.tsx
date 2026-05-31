@@ -202,7 +202,7 @@ function SheetsPageInner() {
   const activeTab = tabs.find((t) => t.id === activeTabId);
 
   return (
-    <div className="mx-auto max-w-3xl p-4 pb-24 md:pb-4 overflow-x-hidden">
+    <div className="mx-auto max-w-3xl p-4 pb-24 md:pb-4 w-full overflow-x-hidden">
       {/* Header + Tab bar — sticky */}
       <div className="sticky top-0 z-10 bg-background pb-2">
         <div className="flex items-center justify-between mb-3 pt-1">
@@ -283,6 +283,7 @@ function SheetsPageInner() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.2 }}
+            className="min-w-0 w-full"
           >
             {/* Tab header with rename + delete */}
             <TabHeader
@@ -928,7 +929,7 @@ function TableView({
   }
 
   return (
-    <div className="rounded-2xl border border-border/50 bg-card/80 overflow-hidden max-w-full min-w-0">
+    <div className="rounded-2xl border border-border/50 bg-card/80 overflow-hidden min-w-0" style={{ maxWidth: "calc(100vw - 2rem)" }}>
       {/* Formula bar */}
       <div className="flex items-center gap-2 px-3 py-1.5 border-b border-border/30 bg-muted/20 relative">
         <span className="text-[10px] font-mono font-bold text-muted-foreground/60 w-8 text-center shrink-0">
@@ -1133,20 +1134,20 @@ function TableView({
       </div>
 
       {/* Add row + formula help */}
-      <div className="flex items-center justify-between border-t border-border/30">
+      <div className="flex items-center justify-between border-t border-border/30 min-w-0">
         <button
           onClick={() => {
             const data: Record<string, unknown> = {};
             cols.forEach((col) => (data[col] = ""));
             onAdd(data);
           }}
-          className="flex items-center gap-1.5 px-4 py-2 text-xs text-muted-foreground/60 hover:text-muted-foreground transition-colors"
+          className="flex items-center gap-1.5 px-4 py-2 text-xs text-muted-foreground/60 hover:text-muted-foreground transition-colors shrink-0"
         >
           <Plus className="h-3.5 w-3.5" />
           Добавить строку
         </button>
-        <span className="text-[10px] text-muted-foreground/30 px-4">
-          Формулы: =SUM =AVERAGE =MIN =MAX =COUNT =A1+B1
+        <span className="text-[10px] text-muted-foreground/30 px-4 truncate">
+          =SUM =AVERAGE =MIN =MAX =COUNT
         </span>
       </div>
     </div>
