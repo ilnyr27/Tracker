@@ -9,6 +9,7 @@ import {
   Target,
   Trash2,
   Archive,
+  Pencil,
   MoreHorizontal,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -445,6 +446,9 @@ function CategoryGoalsDialog({
   const cat = categories.find((c) => c.id === categoryId);
   const catGoals = categoryId ? (goalsByCategory.get(categoryId) || []) : [];
 
+  const [editingGoalId, setEditingGoalId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+
   useEffect(() => {
     if (open) {
       setAddMode(false);
@@ -453,8 +457,29 @@ function CategoryGoalsDialog({
       setTargetDays("30");
       setRecurrenceMode("daily");
       setWeekDays([]);
+      setEditingGoalId(null);
     }
   }, [open]);
+
+  async function deleteGoal(goalId: string) {
+    const supabase = createClient();
+    await supabase.from("goals").delete().eq("id", goalId);
+    onDataChanged();
+  }
+
+  async function archiveGoal(goalId: string) {
+    const supabase = createClient();
+    await supabase.from("goals").update({ status: "cancelled" }).eq("id", goalId);
+    onDataChanged();
+  }
+
+  async function saveEditGoal(goalId: string) {
+    if (!editTitle.trim()) return;
+    const supabase = createClient();
+    await supabase.from("goals").update({ title: editTitle.trim() }).eq("id", goalId);
+    setEditingGoalId(null);
+    onDataChanged();
+  }
 
   async function handleAddGoal(e: React.FormEvent) {
     e.preventDefault();
@@ -537,8 +562,55 @@ function CategoryGoalsDialog({
             const percent = isInfinite ? 0 : (target > 0 ? Math.min(Math.round((done / target) * 100), 100) : 0);
 
             return (
-              <div key={goal.id} className="rounded-xl border border-border/30 p-4">
-                {isHabit ? (
+              <div key={goal.id} className="group/card rounded-xl border border-border/30 p-4 relative">
+                {/* Goal action buttons */}
+                {editingGoalId !== goal.id && (
+                  <div className="absolute top-2 right-2 flex items-center gap-0.5 opacity-0 group-hover/card:opacity-100 transition-opacity">
+                    <button
+                      onClick={() => { setEditingGoalId(goal.id); setEditTitle(goal.title); }}
+                      className="p-1 rounded-md text-muted-foreground/40 hover:text-primary hover:bg-primary/10 transition-colors"
+                      title="Редактировать"
+                    >
+                      <Pencil className="h-3 w-3" />
+                    </button>
+                    <button
+                      onClick={() => archiveGoal(goal.id)}
+                      className="p-1 rounded-md text-muted-foreground/40 hover:text-amber-500 hover:bg-amber-500/10 transition-colors"
+                      title="Архивировать"
+                    >
+                      <Archive className="h-3 w-3" />
+                    </button>
+                    <button
+                      onClick={() => deleteGoal(goal.id)}
+                      className="p-1 rounded-md text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-colors"
+                      title="Удалить"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  </div>
+                )}
+
+                {/* Inline edit mode */}
+                {editingGoalId === goal.id ? (
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={editTitle}
+                      onChange={(e) => setEditTitle(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") saveEditGoal(goal.id);
+                        if (e.key === "Escape") setEditingGoalId(null);
+                      }}
+                      autoFocus
+                      className="h-9 text-sm flex-1"
+                    />
+                    <button
+                      onClick={() => saveEditGoal(goal.id)}
+                      className="p-1.5 rounded-md text-emerald-500 hover:bg-emerald-500/10"
+                    >
+                      <Check className="h-4 w-4" />
+                    </button>
+                  </div>
+                ) : isHabit ? (
                   isInfinite ? (
                     /* Infinite habit — show count + flame instead of progress bar */
                     <div>

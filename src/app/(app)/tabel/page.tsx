@@ -561,7 +561,7 @@ function DonutChart({ stats }: { stats: CatStat[] }) {
   const total = stats.reduce((sum, s) => sum + s.done, 0);
   if (total === 0) return <p className="text-xs text-muted-foreground text-center py-8">Нет данных за период</p>;
 
-  const cx = 170, cy = 160, outerR = 80, innerR = 50, labelR = 115;
+  const cx = 200, cy = 160, outerR = 80, innerR = 50, labelR = 115;
   let currentAngle = -Math.PI / 2;
 
   const slices = stats.filter((s) => s.done > 0).map((s) => {
@@ -593,7 +593,7 @@ function DonutChart({ stats }: { stats: CatStat[] }) {
 
   return (
     <div className="flex flex-col items-center">
-      <svg viewBox="0 0 340 320" className="w-full max-w-[340px] h-auto">
+      <svg viewBox="0 0 400 320" className="w-full max-w-[400px] h-auto">
         {slices.map((s, i) => (
           <path key={i} d={s.d} fill={s.color} opacity={0.85} stroke="var(--card)" strokeWidth={2} />
         ))}
