@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import {
   Plus,
@@ -445,6 +445,247 @@ export default function MainPage() {
   );
 }
 
+// --- Swipeable Goal Card ---
+
+function SwipeableGoalCard({
+  goal, isHabit, isInfinite, done, target, percent, cat,
+  editingGoalId, editTitle, confirmDeleteId,
+  onEditStart, onEditChange, onEditSave, onEditCancel,
+  onArchive, onDelete, onConfirmDeleteStart, onConfirmDeleteCancel,
+  onToggleMilestone,
+}: {
+  goal: Goal;
+  isHabit: boolean;
+  isInfinite: boolean;
+  done: number;
+  target: number;
+  percent: number;
+  cat: Category | undefined;
+  editingGoalId: string | null;
+  editTitle: string;
+  confirmDeleteId: string | null;
+  onEditStart: () => void;
+  onEditChange: (v: string) => void;
+  onEditSave: () => void;
+  onEditCancel: () => void;
+  onArchive: () => void;
+  onDelete: () => void;
+  onConfirmDeleteStart: () => void;
+  onConfirmDeleteCancel: () => void;
+  onToggleMilestone: () => void;
+}) {
+  const [swipeX, setSwipeX] = useState(0);
+  const touchStart = useRef<{ x: number; y: number } | null>(null);
+  const swiping = useRef(false);
+
+  function handleTouchStart(e: React.TouchEvent) {
+    touchStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    swiping.current = false;
+  }
+
+  function handleTouchMove(e: React.TouchEvent) {
+    if (!touchStart.current) return;
+    const dx = e.touches[0].clientX - touchStart.current.x;
+    const dy = e.touches[0].clientY - touchStart.current.y;
+    // Only swipe if horizontal movement > vertical
+    if (!swiping.current && Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy)) {
+      swiping.current = true;
+    }
+    if (swiping.current) {
+      setSwipeX(dx);
+    }
+  }
+
+  function handleTouchEnd() {
+    if (swipeX < -80) {
+      onArchive();
+    } else if (swipeX > 80) {
+      onConfirmDeleteStart();
+    }
+    setSwipeX(0);
+    touchStart.current = null;
+    swiping.current = false;
+  }
+
+  const isEditing = editingGoalId === goal.id;
+  const isConfirmingDelete = confirmDeleteId === goal.id;
+
+  // Delete confirmation overlay
+  if (isConfirmingDelete) {
+    return (
+      <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4">
+        <p className="text-sm text-center mb-3">Удалить «{goal.title}»?</p>
+        <div className="flex gap-2 justify-center">
+          <button
+            onClick={onConfirmDeleteCancel}
+            className="px-4 py-2 text-sm rounded-lg border border-border/50 hover:bg-accent/50 transition-colors"
+          >
+            Отмена
+          </button>
+          <button
+            onClick={onDelete}
+            className="px-4 py-2 text-sm rounded-lg bg-destructive text-white hover:bg-destructive/90 transition-colors"
+          >
+            Удалить
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative rounded-xl overflow-hidden">
+      {/* Swipe backgrounds */}
+      {swipeX !== 0 && (
+        <>
+          {swipeX < 0 && (
+            <div className="absolute inset-0 bg-amber-500/20 flex items-center justify-end pr-4 rounded-xl">
+              <Archive className="h-5 w-5 text-amber-500" />
+            </div>
+          )}
+          {swipeX > 0 && (
+            <div className="absolute inset-0 bg-destructive/15 flex items-center justify-start pl-4 rounded-xl">
+              <Trash2 className="h-5 w-5 text-destructive" />
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Card content */}
+      <div
+        className="relative rounded-xl border border-border/30 p-4 bg-card transition-transform"
+        style={{ transform: swipeX !== 0 ? `translateX(${swipeX}px)` : undefined }}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      >
+        {/* Inline edit mode */}
+        {isEditing ? (
+          <div className="flex items-center gap-2">
+            <Input
+              value={editTitle}
+              onChange={(e) => onEditChange(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") onEditSave();
+                if (e.key === "Escape") onEditCancel();
+              }}
+              autoFocus
+              className="h-9 text-sm flex-1"
+            />
+            <button
+              onClick={onEditSave}
+              className="p-1.5 rounded-md text-emerald-500 hover:bg-emerald-500/10"
+            >
+              <Check className="h-4 w-4" />
+            </button>
+          </div>
+        ) : isHabit ? (
+          isInfinite ? (
+            <div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium cursor-text" onClick={onEditStart}>{goal.title}</span>
+                <div className="flex items-center gap-1.5">
+                  <Flame className="h-4 w-4 text-orange-500" />
+                  <span className="text-lg font-bold tabular-nums" style={{ color: cat?.color || "var(--primary)" }}>
+                    {done}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {done === 1 ? "день" : done >= 2 && done <= 4 ? "дня" : "дней"}
+                  </span>
+                </div>
+              </div>
+              <div className="flex items-center gap-1 mt-2">
+                {Array.from({ length: Math.min(done, 30) }).map((_, i) => (
+                  <div
+                    key={i}
+                    className="h-2 w-2 rounded-full"
+                    style={{
+                      backgroundColor: cat?.color || "var(--primary)",
+                      opacity: 0.4 + (i / Math.min(done, 30)) * 0.6,
+                    }}
+                  />
+                ))}
+                {done > 30 && (
+                  <span className="text-xs text-muted-foreground ml-1">+{done - 30}</span>
+                )}
+                {done === 0 && (
+                  <span className="text-xs text-muted-foreground/40">Начни сегодня!</span>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium cursor-text" onClick={onEditStart}>{goal.title}</span>
+                <span className="text-sm text-muted-foreground tabular-nums">
+                  {done}/{target}{" "}
+                  <span className="font-semibold" style={{ color: cat?.color || "var(--primary)" }}>
+                    {percent}%
+                  </span>
+                </span>
+              </div>
+              <div className="h-2.5 w-full rounded-full bg-muted overflow-hidden">
+                <motion.div
+                  className="h-full rounded-full"
+                  style={{ backgroundColor: cat?.color || "var(--primary)" }}
+                  initial={{ width: 0 }}
+                  animate={{ width: `${percent}%` }}
+                  transition={{ duration: 0.6 }}
+                />
+              </div>
+            </div>
+          )
+        ) : (
+          <button
+            onClick={onToggleMilestone}
+            className="flex items-center gap-3 w-full text-left min-h-[44px]"
+          >
+            <div
+              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border-2 transition-all"
+              style={{
+                borderColor: goal.status === "completed" ? (cat?.color || "#22c55e") : "oklch(0.5 0 0)",
+                backgroundColor: goal.status === "completed" ? (cat?.color || "#22c55e") : "transparent",
+              }}
+            >
+              {goal.status === "completed" && <Check className="h-3.5 w-3.5 text-white" />}
+            </div>
+            <span
+              className={`text-sm flex-1 ${goal.status === "completed" ? "line-through text-muted-foreground/50" : ""}`}
+              onClick={(e) => { e.stopPropagation(); e.preventDefault(); onEditStart(); }}
+            >
+              {goal.title}
+            </span>
+          </button>
+        )}
+
+        {/* Desktop action buttons — centered below content */}
+        {!isEditing && (
+          <div className="hidden md:flex items-center justify-center gap-1 mt-3 pt-2 border-t border-border/20">
+            <button
+              onClick={onEditStart}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg text-muted-foreground/60 hover:text-primary hover:bg-primary/10 transition-colors"
+            >
+              <Pencil className="h-3 w-3" /> Изменить
+            </button>
+            <button
+              onClick={onArchive}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg text-muted-foreground/60 hover:text-amber-500 hover:bg-amber-500/10 transition-colors"
+            >
+              <Archive className="h-3 w-3" /> Архив
+            </button>
+            <button
+              onClick={onConfirmDeleteStart}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg text-muted-foreground/60 hover:text-destructive hover:bg-destructive/10 transition-colors"
+            >
+              <Trash2 className="h-3 w-3" /> Удалить
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // --- Category Goals Dialog (tap on a card → see goals + add) ---
 
 function CategoryGoalsDialog({
@@ -489,7 +730,7 @@ function CategoryGoalsDialog({
 
   const [editingGoalId, setEditingGoalId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
-  const [goalMenuOpen, setGoalMenuOpen] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   useEffect(() => {
     if (open) {
@@ -500,7 +741,7 @@ function CategoryGoalsDialog({
       setRecurrenceMode("daily");
       setWeekDays([]);
       setEditingGoalId(null);
-      setGoalMenuOpen(null);
+      setConfirmDeleteId(null);
     }
   }, [open]);
 
@@ -626,148 +867,28 @@ function CategoryGoalsDialog({
             const percent = isInfinite ? 0 : (target > 0 ? Math.min(Math.round((done / target) * 100), 100) : 0);
 
             return (
-              <div key={goal.id} className="rounded-xl border border-border/30 p-4 relative">
-                {/* Goal action menu button — always visible */}
-                {editingGoalId !== goal.id && (
-                  <div className="absolute top-2 right-2 z-10">
-                    <button
-                      onClick={() => setGoalMenuOpen(goalMenuOpen === goal.id ? null : goal.id)}
-                      className="p-1.5 rounded-lg text-muted-foreground/40 hover:text-muted-foreground hover:bg-accent/60 transition-all"
-                    >
-                      <MoreHorizontal className="h-4 w-4" />
-                    </button>
-                    <AnimatePresence>
-                      {goalMenuOpen === goal.id && (
-                        <motion.div
-                          initial={{ opacity: 0, scale: 0.9 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          exit={{ opacity: 0, scale: 0.9 }}
-                          transition={{ duration: 0.15 }}
-                          className="absolute top-8 right-0 z-20 bg-popover border border-border/50 rounded-xl shadow-lg py-1 min-w-[140px]"
-                        >
-                          <button
-                            onClick={() => { setEditingGoalId(goal.id); setEditTitle(goal.title); setGoalMenuOpen(null); }}
-                            className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-accent/50 transition-colors"
-                          >
-                            <Pencil className="h-3.5 w-3.5" /> Изменить
-                          </button>
-                          <button
-                            onClick={() => { archiveGoal(goal.id); setGoalMenuOpen(null); }}
-                            className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-accent/50 text-amber-500 transition-colors"
-                          >
-                            <Archive className="h-3.5 w-3.5" /> В архив
-                          </button>
-                          <button
-                            onClick={() => { deleteGoal(goal.id); setGoalMenuOpen(null); }}
-                            className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-destructive/10 text-destructive transition-colors"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" /> Удалить
-                          </button>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </div>
-                )}
-
-                {/* Inline edit mode */}
-                {editingGoalId === goal.id ? (
-                  <div className="flex items-center gap-2">
-                    <Input
-                      value={editTitle}
-                      onChange={(e) => setEditTitle(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") saveEditGoal(goal.id);
-                        if (e.key === "Escape") setEditingGoalId(null);
-                      }}
-                      autoFocus
-                      className="h-9 text-sm flex-1"
-                    />
-                    <button
-                      onClick={() => saveEditGoal(goal.id)}
-                      className="p-1.5 rounded-md text-emerald-500 hover:bg-emerald-500/10"
-                    >
-                      <Check className="h-4 w-4" />
-                    </button>
-                  </div>
-                ) : isHabit ? (
-                  isInfinite ? (
-                    /* Infinite habit — show count + flame instead of progress bar */
-                    <div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium">{goal.title}</span>
-                        <div className="flex items-center gap-1.5">
-                          <Flame className="h-4 w-4 text-orange-500" />
-                          <span className="text-lg font-bold tabular-nums" style={{ color: cat?.color || "var(--primary)" }}>
-                            {done}
-                          </span>
-                          <span className="text-xs text-muted-foreground">
-                            {done === 1 ? "день" : done >= 2 && done <= 4 ? "дня" : "дней"}
-                          </span>
-                        </div>
-                      </div>
-                      {/* Infinite progress — animated dots */}
-                      <div className="flex items-center gap-1 mt-2">
-                        {Array.from({ length: Math.min(done, 30) }).map((_, i) => (
-                          <div
-                            key={i}
-                            className="h-2 w-2 rounded-full"
-                            style={{
-                              backgroundColor: cat?.color || "var(--primary)",
-                              opacity: 0.4 + (i / Math.min(done, 30)) * 0.6,
-                            }}
-                          />
-                        ))}
-                        {done > 30 && (
-                          <span className="text-xs text-muted-foreground ml-1">+{done - 30}</span>
-                        )}
-                        {done === 0 && (
-                          <span className="text-xs text-muted-foreground/40">Начни сегодня!</span>
-                        )}
-                      </div>
-                    </div>
-                  ) : (
-                    /* Regular habit with target */
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-medium">{goal.title}</span>
-                        <span className="text-sm text-muted-foreground tabular-nums">
-                          {done}/{target}{" "}
-                          <span className="font-semibold" style={{ color: cat?.color || "var(--primary)" }}>
-                            {percent}%
-                          </span>
-                        </span>
-                      </div>
-                      <div className="h-2.5 w-full rounded-full bg-muted overflow-hidden">
-                        <motion.div
-                          className="h-full rounded-full"
-                          style={{ backgroundColor: cat?.color || "var(--primary)" }}
-                          initial={{ width: 0 }}
-                          animate={{ width: `${percent}%` }}
-                          transition={{ duration: 0.6 }}
-                        />
-                      </div>
-                    </div>
-                  )
-                ) : (
-                  <button
-                    onClick={() => toggleMilestone(goal)}
-                    className="flex items-center gap-3 w-full text-left min-h-[44px]"
-                  >
-                    <div
-                      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border-2 transition-all"
-                      style={{
-                        borderColor: goal.status === "completed" ? (cat?.color || "#22c55e") : "oklch(0.5 0 0)",
-                        backgroundColor: goal.status === "completed" ? (cat?.color || "#22c55e") : "transparent",
-                      }}
-                    >
-                      {goal.status === "completed" && <Check className="h-3.5 w-3.5 text-white" />}
-                    </div>
-                    <span className={`text-sm ${goal.status === "completed" ? "line-through text-muted-foreground/50" : ""}`}>
-                      {goal.title}
-                    </span>
-                  </button>
-                )}
-              </div>
+              <SwipeableGoalCard
+                key={goal.id}
+                goal={goal}
+                isHabit={isHabit}
+                isInfinite={isInfinite}
+                done={done}
+                target={target}
+                percent={percent}
+                cat={cat}
+                editingGoalId={editingGoalId}
+                editTitle={editTitle}
+                confirmDeleteId={confirmDeleteId}
+                onEditStart={() => { setEditingGoalId(goal.id); setEditTitle(goal.title); }}
+                onEditChange={setEditTitle}
+                onEditSave={() => saveEditGoal(goal.id)}
+                onEditCancel={() => setEditingGoalId(null)}
+                onArchive={() => archiveGoal(goal.id)}
+                onDelete={() => deleteGoal(goal.id)}
+                onConfirmDeleteStart={() => setConfirmDeleteId(goal.id)}
+                onConfirmDeleteCancel={() => setConfirmDeleteId(null)}
+                onToggleMilestone={() => toggleMilestone(goal)}
+              />
             );
           })}
         </div>
