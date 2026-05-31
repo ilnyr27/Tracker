@@ -202,7 +202,7 @@ function SheetsPageInner() {
   const activeTab = tabs.find((t) => t.id === activeTabId);
 
   return (
-    <div className="mx-auto max-w-3xl p-4 pb-24 md:pb-4">
+    <div className="mx-auto max-w-3xl p-4 pb-24 md:pb-4 overflow-x-hidden">
       {/* Header + Tab bar — sticky */}
       <div className="sticky top-0 z-10 bg-background pb-2">
         <div className="flex items-center justify-between mb-3 pt-1">
@@ -928,7 +928,7 @@ function TableView({
   }
 
   return (
-    <div className="rounded-2xl border border-border/50 bg-card/80 overflow-hidden">
+    <div className="rounded-2xl border border-border/50 bg-card/80 overflow-hidden max-w-full min-w-0">
       {/* Formula bar */}
       <div className="flex items-center gap-2 px-3 py-1.5 border-b border-border/30 bg-muted/20 relative">
         <span className="text-[10px] font-mono font-bold text-muted-foreground/60 w-8 text-center shrink-0">
@@ -956,7 +956,7 @@ function TableView({
       </div>
 
       <div className="overflow-x-auto">
-        <table className="w-full text-sm border-collapse">
+        <table className="min-w-full text-sm border-collapse">
           <thead>
             <tr className="border-b border-border/50 bg-muted/30">
               {/* Row number header */}
