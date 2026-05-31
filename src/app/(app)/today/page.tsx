@@ -801,32 +801,28 @@ function CategoryGoalsDialog({
                     <span className="text-xs text-muted-foreground">дн</span>
                   </div>
                 </div>
-                <div className="flex gap-1.5">
-                  {["7", "14", "30", "90", "365"].map((d) => (
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    { value: "7", label: "1 нед" },
+                    { value: "14", label: "2 нед" },
+                    { value: "30", label: "1 мес" },
+                    { value: "90", label: "3 мес" },
+                    { value: "365", label: "1 год" },
+                    { value: "∞", label: "∞" },
+                  ].map((preset) => (
                     <button
-                      key={d}
+                      key={preset.value}
                       type="button"
-                      onClick={() => setTargetDays(d)}
-                      className={`flex-1 py-1.5 text-xs rounded-lg border transition-all ${
-                        targetDays === d
+                      onClick={() => setTargetDays(preset.value)}
+                      className={`flex-1 min-w-[48px] py-1.5 text-xs rounded-lg border transition-all ${
+                        targetDays === preset.value
                           ? "border-primary/50 bg-primary/10 text-primary font-medium"
                           : "border-border/30 text-muted-foreground"
                       }`}
                     >
-                      {d === "365" ? "1 год" : `${d}д`}
+                      {preset.label}
                     </button>
                   ))}
-                  <button
-                    type="button"
-                    onClick={() => setTargetDays("∞")}
-                    className={`flex-1 py-1.5 text-xs rounded-lg border transition-all ${
-                      targetDays === "∞"
-                        ? "border-primary/50 bg-primary/10 text-primary font-medium"
-                        : "border-border/30 text-muted-foreground"
-                    }`}
-                  >
-                    ∞
-                  </button>
                 </div>
               </div>
             )}

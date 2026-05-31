@@ -15,6 +15,8 @@ import {
   subMonths,
   isToday,
   isBefore,
+  parseISO,
+  startOfDay,
 } from "date-fns";
 import { ru } from "date-fns/locale";
 import {
@@ -213,7 +215,9 @@ export default function MatrixPage() {
   for (const cat of activeCats) {
     const catGoals = goalsByCategory.get(cat.id) || [];
     for (const goal of catGoals) {
+      const goalStart = startOfDay(parseISO(goal.created_at));
       for (const day of days) {
+        if (isBefore(day, goalStart)) continue; // skip days before goal was created
         const ds = format(day, "yyyy-MM-dd");
         const task = taskMap.get(`${goal.id}__${ds}`);
         const past = isBefore(day, new Date()) && !isToday(day);
@@ -231,7 +235,9 @@ export default function MatrixPage() {
       let done = 0;
       let total = 0;
       for (const goal of catGoals) {
+        const goalStart = startOfDay(parseISO(goal.created_at));
         for (const day of days) {
+          if (isBefore(day, goalStart)) continue; // skip days before goal was created
           const ds = format(day, "yyyy-MM-dd");
           const past = isBefore(day, new Date()) || isToday(day);
           if (!past) continue;
@@ -383,30 +389,35 @@ export default function MatrixPage() {
                       const today = isToday(day);
                       const isPast = isBefore(day, new Date()) && !today;
                       const isDone = task?.is_done === true;
-                      const isFuture = !isPast && !today;
+                      const goalStart = startOfDay(parseISO(goal.created_at));
+                      const beforeGoal = isBefore(day, goalStart);
 
                       return (
                         <td
                           key={dateStr}
                           className={`text-center px-0.5 py-1.5 ${today ? "bg-primary/3" : ""}`}
                         >
-                          <button
-                            onClick={() => toggleCell(goal.id, dateStr)}
-                            className="inline-flex h-7 w-7 items-center justify-center rounded-lg transition-all hover:scale-110"
-                            aria-label={`${goal.title} — ${format(day, "d MMM", { locale: ru })}${isDone ? " (выполнено)" : ""}`}
-                          >
-                            {isDone ? (
-                              <div className="h-5 w-5 rounded-md bg-emerald-500/15 flex items-center justify-center">
-                                <Check className="h-3.5 w-3.5 text-emerald-500" strokeWidth={3} />
-                              </div>
-                            ) : isPast ? (
-                              <div className="h-5 w-5 rounded-md bg-red-500/10 flex items-center justify-center">
-                                <X className="h-3 w-3 text-red-400/70" strokeWidth={2.5} />
-                              </div>
-                            ) : (
-                              <div className="h-5 w-5 rounded-md border border-border/30" />
-                            )}
-                          </button>
+                          {beforeGoal ? (
+                            <div className="inline-flex h-7 w-7 items-center justify-center" />
+                          ) : (
+                            <button
+                              onClick={() => toggleCell(goal.id, dateStr)}
+                              className="inline-flex h-7 w-7 items-center justify-center rounded-lg transition-all hover:scale-110"
+                              aria-label={`${goal.title} — ${format(day, "d MMM", { locale: ru })}${isDone ? " (выполнено)" : ""}`}
+                            >
+                              {isDone ? (
+                                <div className="h-5 w-5 rounded-md bg-emerald-500/15 flex items-center justify-center">
+                                  <Check className="h-3.5 w-3.5 text-emerald-500" strokeWidth={3} />
+                                </div>
+                              ) : isPast ? (
+                                <div className="h-5 w-5 rounded-md bg-red-500/10 flex items-center justify-center">
+                                  <X className="h-3 w-3 text-red-400/70" strokeWidth={2.5} />
+                                </div>
+                              ) : (
+                                <div className="h-5 w-5 rounded-md border border-border/30" />
+                              )}
+                            </button>
+                          )}
                         </td>
                       );
                     })}
@@ -495,7 +506,7 @@ function RadarChart({ stats }: { stats: CatStat[] }) {
 
   return (
     <div className="flex flex-col items-center">
-      <svg viewBox="0 0 420 400" className="w-full max-w-[400px] h-auto">
+      <svg viewBox="0 0 420 420" className="w-full max-w-[400px] h-auto">
         {/* Grid */}
         {gridLevels.map((lvl) => (
           <polygon
@@ -521,25 +532,37 @@ function RadarChart({ stats }: { stats: CatStat[] }) {
         {dataPoints.map((p, i) => (
           <circle key={i} cx={p.x} cy={p.y} r={4} fill={stats[i].color} stroke="white" strokeWidth={2} />
         ))}
-        {/* Labels — name + percent inside each petal direction */}
+        {/* Labels — name lines + percent inside each petal direction */}
         {stats.map((s, i) => {
-          const labelPos = polarToXY(i * angleStep, r + 30);
+          const labelPos = polarToXY(i * angleStep, r + 35);
+          // Split name by " / " or " " to show on separate lines
+          const parts = s.name.includes("/")
+            ? s.name.split(/\s*\/\s*/)
+            : s.name.length > 8
+              ? s.name.split(/\s+/)
+              : [s.name];
+          const lineH = 13;
+          const totalH = (parts.length + 1) * lineH; // +1 for percent
+          const startY = labelPos.y - totalH / 2 + lineH / 2;
           return (
             <g key={i}>
+              {parts.map((part, pi) => (
+                <text
+                  key={pi}
+                  x={labelPos.x}
+                  y={startY + pi * lineH}
+                  textAnchor="middle"
+                  dominantBaseline="central"
+                  className="fill-current"
+                  fontSize={10}
+                  fontWeight="600"
+                >
+                  {part}
+                </text>
+              ))}
               <text
                 x={labelPos.x}
-                y={labelPos.y - 6}
-                textAnchor="middle"
-                dominantBaseline="central"
-                className="fill-current"
-                fontSize={10}
-                fontWeight="600"
-              >
-                {s.name}
-              </text>
-              <text
-                x={labelPos.x}
-                y={labelPos.y + 8}
+                y={startY + parts.length * lineH}
                 textAnchor="middle"
                 dominantBaseline="central"
                 fontSize={11}
