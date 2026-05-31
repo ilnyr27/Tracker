@@ -75,6 +75,9 @@ export default function MainPage() {
   const [newCatColor, setNewCatColor] = useState("#6366f1");
   const [newCatEmoji, setNewCatEmoji] = useState("🎯");
   const [savingCat, setSavingCat] = useState(false);
+  const [editingCatId, setEditingCatId] = useState<string | null>(null);
+  const [editCatName, setEditCatName] = useState("");
+  const [catMenuOpen, setCatMenuOpen] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -168,6 +171,14 @@ export default function MainPage() {
     await supabase.from("categories").delete().eq("id", id);
   }
 
+  async function saveEditCatName(id: string) {
+    if (!editCatName.trim()) { setEditingCatId(null); return; }
+    const supabase = createClient();
+    setCategories((prev) => prev.map((c) => c.id === id ? { ...c, name: editCatName.trim() } : c));
+    setEditingCatId(null);
+    await supabase.from("categories").update({ name: editCatName.trim() }).eq("id", id);
+  }
+
   async function handleAddCategory(e: React.FormEvent) {
     e.preventDefault();
     if (!newCatName.trim()) return;
@@ -196,25 +207,11 @@ export default function MainPage() {
   return (
     <div className="mx-auto max-w-3xl px-4 py-6 pb-28 md:px-6 md:pb-6">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-3xl font-bold gradient-text tracking-tight">Life OS</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Твоя жизнь. Твои правила.
-          </p>
-        </div>
-        <Button
-          variant="outline"
-          size="icon"
-          className="h-11 w-11 rounded-2xl border-border/50"
-          onClick={() => {
-            setGoalDialogCatId(null);
-            setGoalDialogOpen(true);
-          }}
-          aria-label="Добавить цель"
-        >
-          <Plus className="h-5 w-5" />
-        </Button>
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold gradient-text tracking-tight">Life OS</h1>
+        <p className="text-sm text-muted-foreground mt-1">
+          Твоя жизнь. Твои правила.
+        </p>
       </div>
 
       {/* Grid of category cards */}
@@ -242,29 +239,51 @@ export default function MainPage() {
                 <motion.div
                   key={cat.id}
                   variants={item}
-                  className="relative rounded-3xl border border-border/40 bg-card p-5 flex flex-col items-start text-left gap-3 hover:shadow-lg hover:border-border/60 transition-all min-h-[160px] group"
+                  className="relative rounded-3xl border border-border/40 bg-card p-5 flex flex-col items-start text-left gap-3 hover:shadow-lg hover:border-border/60 transition-all min-h-[160px]"
                 >
-                  {/* Context menu */}
-                  <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10 flex gap-1">
-                    <button
-                      onClick={(e) => { e.stopPropagation(); archiveCategory(cat.id); }}
-                      className="p-1.5 rounded-lg hover:bg-accent/60 text-muted-foreground/40 hover:text-amber-500 transition-all"
-                      title="В архив"
-                    >
-                      <Archive className="h-3.5 w-3.5" />
-                    </button>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); deleteCategory(cat.id); }}
-                      className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground/40 hover:text-destructive transition-all"
-                      title="Удалить"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
+                  {/* Menu button — always visible */}
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setCatMenuOpen(catMenuOpen === cat.id ? null : cat.id); }}
+                    className="absolute top-2.5 right-2.5 p-1.5 rounded-lg text-muted-foreground/40 hover:text-muted-foreground hover:bg-accent/60 transition-all z-10"
+                  >
+                    <MoreHorizontal className="h-4 w-4" />
+                  </button>
+
+                  {/* Dropdown menu */}
+                  <AnimatePresence>
+                    {catMenuOpen === cat.id && (
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.9 }}
+                        transition={{ duration: 0.15 }}
+                        className="absolute top-10 right-2 z-20 bg-popover border border-border/50 rounded-xl shadow-lg py-1 min-w-[140px]"
+                      >
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setEditingCatId(cat.id); setEditCatName(cat.name); setCatMenuOpen(null); }}
+                          className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-accent/50 transition-colors"
+                        >
+                          <Pencil className="h-3.5 w-3.5" /> Переименовать
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); archiveCategory(cat.id); setCatMenuOpen(null); }}
+                          className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-accent/50 text-amber-500 transition-colors"
+                        >
+                          <Archive className="h-3.5 w-3.5" /> В архив
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); deleteCategory(cat.id); setCatMenuOpen(null); }}
+                          className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-destructive/10 text-destructive transition-colors"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" /> Удалить
+                        </button>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
 
                   {/* Clickable area */}
                   <button
-                    onClick={() => openAddGoal(cat.id)}
+                    onClick={() => { setCatMenuOpen(null); openAddGoal(cat.id); }}
                     className="flex flex-col items-start text-left gap-3 w-full flex-1"
                   >
                     {/* Emoji + Percent row */}
@@ -283,11 +302,28 @@ export default function MainPage() {
                       </span>
                     </div>
 
-                    {/* Name */}
-                    <div className="space-y-1">
-                      <span className="text-base font-semibold leading-snug line-clamp-1 block">
-                        {cat.name}
-                      </span>
+                    {/* Name — inline edit or display */}
+                    <div className="space-y-1 w-full" onClick={(e) => e.stopPropagation()}>
+                      {editingCatId === cat.id ? (
+                        <Input
+                          value={editCatName}
+                          onChange={(e) => setEditCatName(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") saveEditCatName(cat.id);
+                            if (e.key === "Escape") setEditingCatId(null);
+                          }}
+                          onBlur={() => saveEditCatName(cat.id)}
+                          autoFocus
+                          className="h-8 text-sm font-semibold bg-input/50 border-border/50"
+                        />
+                      ) : (
+                        <span
+                          className="text-base font-semibold leading-snug line-clamp-1 block cursor-text"
+                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); setEditingCatId(cat.id); setEditCatName(cat.name); }}
+                        >
+                          {cat.name}
+                        </span>
+                      )}
                     </div>
 
                     {/* Progress bar */}
@@ -448,6 +484,7 @@ function CategoryGoalsDialog({
 
   const [editingGoalId, setEditingGoalId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
+  const [goalMenuOpen, setGoalMenuOpen] = useState<string | null>(null);
 
   useEffect(() => {
     if (open) {
@@ -458,6 +495,7 @@ function CategoryGoalsDialog({
       setRecurrenceMode("daily");
       setWeekDays([]);
       setEditingGoalId(null);
+      setGoalMenuOpen(null);
     }
   }, [open]);
 
@@ -562,31 +600,46 @@ function CategoryGoalsDialog({
             const percent = isInfinite ? 0 : (target > 0 ? Math.min(Math.round((done / target) * 100), 100) : 0);
 
             return (
-              <div key={goal.id} className="group/card rounded-xl border border-border/30 p-4 relative">
-                {/* Goal action buttons */}
+              <div key={goal.id} className="rounded-xl border border-border/30 p-4 relative">
+                {/* Goal action menu button — always visible */}
                 {editingGoalId !== goal.id && (
-                  <div className="absolute top-2 right-2 flex items-center gap-0.5 opacity-0 group-hover/card:opacity-100 transition-opacity">
+                  <div className="absolute top-2 right-2 z-10">
                     <button
-                      onClick={() => { setEditingGoalId(goal.id); setEditTitle(goal.title); }}
-                      className="p-1 rounded-md text-muted-foreground/40 hover:text-primary hover:bg-primary/10 transition-colors"
-                      title="Редактировать"
+                      onClick={() => setGoalMenuOpen(goalMenuOpen === goal.id ? null : goal.id)}
+                      className="p-1.5 rounded-lg text-muted-foreground/40 hover:text-muted-foreground hover:bg-accent/60 transition-all"
                     >
-                      <Pencil className="h-3 w-3" />
+                      <MoreHorizontal className="h-4 w-4" />
                     </button>
-                    <button
-                      onClick={() => archiveGoal(goal.id)}
-                      className="p-1 rounded-md text-muted-foreground/40 hover:text-amber-500 hover:bg-amber-500/10 transition-colors"
-                      title="Архивировать"
-                    >
-                      <Archive className="h-3 w-3" />
-                    </button>
-                    <button
-                      onClick={() => deleteGoal(goal.id)}
-                      className="p-1 rounded-md text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-colors"
-                      title="Удалить"
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </button>
+                    <AnimatePresence>
+                      {goalMenuOpen === goal.id && (
+                        <motion.div
+                          initial={{ opacity: 0, scale: 0.9 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          exit={{ opacity: 0, scale: 0.9 }}
+                          transition={{ duration: 0.15 }}
+                          className="absolute top-8 right-0 z-20 bg-popover border border-border/50 rounded-xl shadow-lg py-1 min-w-[140px]"
+                        >
+                          <button
+                            onClick={() => { setEditingGoalId(goal.id); setEditTitle(goal.title); setGoalMenuOpen(null); }}
+                            className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-accent/50 transition-colors"
+                          >
+                            <Pencil className="h-3.5 w-3.5" /> Изменить
+                          </button>
+                          <button
+                            onClick={() => { archiveGoal(goal.id); setGoalMenuOpen(null); }}
+                            className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-accent/50 text-amber-500 transition-colors"
+                          >
+                            <Archive className="h-3.5 w-3.5" /> В архив
+                          </button>
+                          <button
+                            onClick={() => { deleteGoal(goal.id); setGoalMenuOpen(null); }}
+                            className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-destructive/10 text-destructive transition-colors"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" /> Удалить
+                          </button>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                   </div>
                 )}
 
