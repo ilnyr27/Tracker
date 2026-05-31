@@ -342,11 +342,19 @@ function ListView({
   onDelete: (id: string) => void;
 }) {
   const [newItem, setNewItem] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editText, setEditText] = useState("");
 
   function handleAdd() {
     if (!newItem.trim()) return;
     onAdd({ text: newItem.trim(), done: false });
     setNewItem("");
+  }
+
+  function saveEdit(entryId: string, data: Record<string, unknown>) {
+    if (!editText.trim()) return;
+    onUpdate(entryId, { ...data, text: editText.trim() });
+    setEditingId(null);
   }
 
   return (
@@ -355,6 +363,7 @@ function ListView({
         {entries.map((entry) => {
           const text = (entry.data.text as string) || "";
           const done = !!entry.data.done;
+          const isEditing = editingId === entry.id;
 
           return (
             <div
@@ -371,13 +380,28 @@ function ListView({
               >
                 {done && <Check className="h-2.5 w-2.5 text-white" />}
               </button>
-              <span
-                className={`flex-1 text-sm ${
-                  done ? "line-through text-muted-foreground/50" : ""
-                }`}
-              >
-                {text}
-              </span>
+              {isEditing ? (
+                <input
+                  value={editText}
+                  onChange={(e) => setEditText(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") saveEdit(entry.id, entry.data);
+                    if (e.key === "Escape") setEditingId(null);
+                  }}
+                  onBlur={() => saveEdit(entry.id, entry.data)}
+                  autoFocus
+                  className="flex-1 text-sm bg-transparent outline-none border-b border-primary/50"
+                />
+              ) : (
+                <span
+                  className={`flex-1 text-sm cursor-text ${
+                    done ? "line-through text-muted-foreground/50" : ""
+                  }`}
+                  onClick={() => { setEditingId(entry.id); setEditText(text); }}
+                >
+                  {text}
+                </span>
+              )}
               <button
                 onClick={() => onDelete(entry.id)}
                 className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-destructive/10 transition-all"
