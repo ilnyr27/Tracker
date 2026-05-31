@@ -667,7 +667,7 @@ function GoalDialog({
               <label className="text-xs text-muted-foreground mb-1.5 block">Уровень</label>
               <Select value={level} onValueChange={(v) => setLevel(v as Goal["level"])}>
                 <SelectTrigger className="h-11 bg-input/50 border-border/50">
-                  <SelectValue placeholder="Выбрать уровень" />
+                  <span className="truncate">{LEVEL_LABELS[level]}</span>
                 </SelectTrigger>
                 <SelectContent>
                   {LEVEL_ORDER.map((l) => (
@@ -681,7 +681,11 @@ function GoalDialog({
               <label className="text-xs text-muted-foreground mb-1.5 block">Категория</label>
               <Select value={categoryId} onValueChange={(v) => setCategoryId(v ?? "none")}>
                 <SelectTrigger className="h-11 bg-input/50 border-border/50">
-                  <SelectValue placeholder="Без категории" />
+                  <span className="truncate">
+                    {categoryId === "none"
+                      ? "Без категории"
+                      : categories.find((c) => c.id === categoryId)?.name || "Без категории"}
+                  </span>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">Без категории</SelectItem>
@@ -698,7 +702,9 @@ function GoalDialog({
               <label className="text-xs text-muted-foreground mb-1.5 block">Статус</label>
               <Select value={status} onValueChange={(v) => setStatus(v as ColumnId)}>
                 <SelectTrigger className="h-11 bg-input/50 border-border/50">
-                  <SelectValue placeholder="Статус" />
+                  <span className="truncate">
+                    {COLUMNS.find((c) => c.id === status)?.label || status}
+                  </span>
                 </SelectTrigger>
                 <SelectContent>
                   {COLUMNS.map((col) => (
@@ -714,7 +720,11 @@ function GoalDialog({
               <label className="text-xs text-muted-foreground mb-1.5 block">Родительская цель</label>
               <Select value={parentGoalId} onValueChange={(v) => setParentGoalId(v ?? "none")}>
                 <SelectTrigger className="h-11 bg-input/50 border-border/50">
-                  <SelectValue placeholder="Нет (верхний уровень)" />
+                  <span className="truncate">
+                    {parentGoalId === "none"
+                      ? "Нет (верхний уровень)"
+                      : (() => { const p = allGoals.find((g) => g.id === parentGoalId); return p ? `[${LEVEL_LABELS[p.level]}] ${p.title}` : "Нет"; })()}
+                  </span>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">Нет (верхний уровень)</SelectItem>
@@ -735,6 +745,7 @@ function GoalDialog({
               value={targetDate}
               onChange={(e) => setTargetDate(e.target.value)}
               className="h-11 bg-input/50 border-border/50"
+              placeholder="дд.мм.гггг"
             />
           </div>
 

@@ -11,6 +11,7 @@ import {
   Archive,
   Pencil,
   MoreHorizontal,
+  Bell,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -721,8 +722,12 @@ function CategoryGoalsDialog({
   const [title, setTitle] = useState("");
   const [trackingType, setTrackingType] = useState<"habit" | "milestone">("habit");
   const [targetDays, setTargetDays] = useState("30");
-  const [recurrenceMode, setRecurrenceMode] = useState<"daily" | "weekly">("daily");
+  const [recurrenceMode, setRecurrenceMode] = useState<"daily" | "weekly" | "advanced">("daily");
   const [weekDays, setWeekDays] = useState<number[]>([]);
+  const [advancedType, setAdvancedType] = useState<"nth_weekday" | "biweekly">("nth_weekday");
+  const [advancedWeekday, setAdvancedWeekday] = useState(1); // 1=Mon
+  const [advancedNth, setAdvancedNth] = useState(1); // 1st occurrence
+  const [reminderTime, setReminderTime] = useState("");
   const [saving, setSaving] = useState(false);
 
   const cat = categories.find((c) => c.id === categoryId);
@@ -740,6 +745,7 @@ function CategoryGoalsDialog({
       setTargetDays("30");
       setRecurrenceMode("daily");
       setWeekDays([]);
+      setReminderTime("");
       setEditingGoalId(null);
       setConfirmDeleteId(null);
     }
@@ -780,21 +786,42 @@ function CategoryGoalsDialog({
       title: title.trim(),
       tracking_type: trackingType,
       target_days: trackingType === "habit" ? (targetDays === "∞" ? 99999 : parseInt(targetDays) || 30) : null,
+      reminder_time: reminderTime || null,
       level: "month",
       sort_order: 0,
     }).select().single();
 
-    // If weekly recurrence, also create a task template
-    if (trackingType === "habit" && recurrenceMode === "weekly" && weekDays.length > 0 && goalData) {
-      await supabase.from("task_templates").insert({
-        user_id: userData.user.id,
-        goal_id: goalData.id,
-        category_id: categoryId,
-        title: title.trim(),
-        recurrence: "weekly",
-        recurrence_days: weekDays,
-        sort_order: 0,
-      });
+    // Create task template for non-daily recurrence
+    if (trackingType === "habit" && goalData) {
+      if (recurrenceMode === "weekly" && weekDays.length > 0) {
+        await supabase.from("task_templates").insert({
+          user_id: userData.user.id,
+          goal_id: goalData.id,
+          category_id: categoryId,
+          title: title.trim(),
+          recurrence: "weekly",
+          recurrence_days: weekDays,
+          reminder_time: reminderTime || null,
+          sort_order: 0,
+        });
+      } else if (recurrenceMode === "advanced") {
+        await supabase.from("task_templates").insert({
+          user_id: userData.user.id,
+          goal_id: goalData.id,
+          category_id: categoryId,
+          title: title.trim(),
+          recurrence: "custom",
+          recurrence_days: [],
+          recurrence_rule: {
+            type: advancedType,
+            weekday: advancedWeekday,
+            ...(advancedType === "nth_weekday" ? { nth: advancedNth } : {}),
+            ...(advancedType === "biweekly" ? { anchor_date: new Date().toISOString().slice(0, 10) } : {}),
+          },
+          reminder_time: reminderTime || null,
+          sort_order: 0,
+        });
+      }
     }
 
     setSaving(false);
@@ -933,24 +960,22 @@ function CategoryGoalsDialog({
               <div className="space-y-3">
                 {/* Recurrence mode toggle */}
                 <div className="flex rounded-xl border border-border/50 overflow-hidden text-xs">
-                  <button
-                    type="button"
-                    onClick={() => setRecurrenceMode("daily")}
-                    className={`flex-1 py-2 transition-colors ${
-                      recurrenceMode === "daily" ? "bg-primary/10 text-primary font-medium" : "text-muted-foreground hover:bg-accent/50"
-                    }`}
-                  >
-                    Каждый день
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setRecurrenceMode("weekly")}
-                    className={`flex-1 py-2 transition-colors ${
-                      recurrenceMode === "weekly" ? "bg-primary/10 text-primary font-medium" : "text-muted-foreground hover:bg-accent/50"
-                    }`}
-                  >
-                    По дням недели
-                  </button>
+                  {([
+                    { mode: "daily" as const, label: "Каждый день" },
+                    { mode: "weekly" as const, label: "По дням" },
+                    { mode: "advanced" as const, label: "Расширенное" },
+                  ]).map(({ mode, label }) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() => setRecurrenceMode(mode)}
+                      className={`flex-1 py-2 transition-colors ${
+                        recurrenceMode === mode ? "bg-primary/10 text-primary font-medium" : "text-muted-foreground hover:bg-accent/50"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
                 </div>
 
                 {/* Weekly day picker */}
@@ -959,7 +984,7 @@ function CategoryGoalsDialog({
                     <label className="text-xs text-muted-foreground mb-1.5 block">В какие дни?</label>
                     <div className="flex gap-1.5">
                       {["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"].map((name, i) => {
-                        const dayNum = i === 6 ? 0 : i + 1; // JS: 0=Sun, 1=Mon...
+                        const dayNum = i === 6 ? 0 : i + 1;
                         return (
                           <button
                             key={i}
@@ -976,6 +1001,94 @@ function CategoryGoalsDialog({
                         );
                       })}
                     </div>
+                  </div>
+                )}
+
+                {/* Advanced recurrence picker */}
+                {recurrenceMode === "advanced" && (
+                  <div className="space-y-3">
+                    {/* Type selector */}
+                    <div className="flex rounded-xl border border-border/50 overflow-hidden text-xs">
+                      <button
+                        type="button"
+                        onClick={() => setAdvancedType("nth_weekday")}
+                        className={`flex-1 py-2 transition-colors ${
+                          advancedType === "nth_weekday" ? "bg-primary/10 text-primary font-medium" : "text-muted-foreground hover:bg-accent/50"
+                        }`}
+                      >
+                        N-й день месяца
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setAdvancedType("biweekly")}
+                        className={`flex-1 py-2 transition-colors ${
+                          advancedType === "biweekly" ? "bg-primary/10 text-primary font-medium" : "text-muted-foreground hover:bg-accent/50"
+                        }`}
+                      >
+                        Через неделю
+                      </button>
+                    </div>
+
+                    {/* Weekday selector */}
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1.5 block">День недели</label>
+                      <div className="flex gap-1.5">
+                        {["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"].map((name, i) => {
+                          const dayNum = i === 6 ? 0 : i + 1;
+                          return (
+                            <button
+                              key={i}
+                              type="button"
+                              onClick={() => setAdvancedWeekday(dayNum)}
+                              className={`flex-1 py-2 text-xs rounded-xl font-medium transition-all ${
+                                advancedWeekday === dayNum
+                                  ? "gradient-primary text-white"
+                                  : "bg-muted text-muted-foreground hover:bg-accent"
+                              }`}
+                            >
+                              {name}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Nth occurrence (only for nth_weekday) */}
+                    {advancedType === "nth_weekday" && (
+                      <div>
+                        <label className="text-xs text-muted-foreground mb-1.5 block">Какой по счёту?</label>
+                        <div className="flex gap-1.5">
+                          {[
+                            { value: 1, label: "1-й" },
+                            { value: 2, label: "2-й" },
+                            { value: 3, label: "3-й" },
+                            { value: 4, label: "4-й" },
+                            { value: -1, label: "Послед." },
+                          ].map((opt) => (
+                            <button
+                              key={opt.value}
+                              type="button"
+                              onClick={() => setAdvancedNth(opt.value)}
+                              className={`flex-1 py-2 text-xs rounded-xl font-medium transition-all ${
+                                advancedNth === opt.value
+                                  ? "gradient-primary text-white"
+                                  : "bg-muted text-muted-foreground hover:bg-accent"
+                              }`}
+                            >
+                              {opt.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Preview label */}
+                    <p className="text-[10px] text-muted-foreground/60 italic">
+                      {advancedType === "nth_weekday"
+                        ? `Каждую ${advancedNth === -1 ? "последнюю" : advancedNth + "-ю"} ${["воскресенье","понедельник","вторник","среду","четверг","пятницу","субботу"][advancedWeekday]} месяца`
+                        : `Через неделю: ${["Вс","Пн","Вт","Ср","Чт","Пт","Сб"][advancedWeekday]}`
+                      }
+                    </p>
                   </div>
                 )}
 
@@ -1026,6 +1139,35 @@ function CategoryGoalsDialog({
                 </div>
               </div>
             )}
+            {/* Reminder time */}
+            <div>
+              <label className="text-xs text-muted-foreground mb-1.5 flex items-center gap-1.5">
+                <Bell className="h-3 w-3" /> Напоминание
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="time"
+                  value={reminderTime}
+                  onChange={(e) => setReminderTime(e.target.value)}
+                  className="flex-1 h-11 rounded-xl border border-border/50 bg-input/50 px-3 text-sm outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/20"
+                />
+                {reminderTime && (
+                  <button
+                    type="button"
+                    onClick={() => setReminderTime("")}
+                    className="p-2 rounded-lg text-muted-foreground/40 hover:text-muted-foreground hover:bg-accent/50 transition-colors"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+              {reminderTime && (
+                <p className="text-[10px] text-muted-foreground/50 mt-1">
+                  Уведомление придёт в {reminderTime}
+                </p>
+              )}
+            </div>
+
             <div className="flex gap-3">
               <Button type="button" variant="ghost" className="flex-1 h-11" onClick={() => setAddMode(false)}>
                 Отмена

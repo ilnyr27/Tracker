@@ -26,6 +26,7 @@ const RECURRENCE_LABELS: Record<TaskTemplate["recurrence"], string> = {
   weekdays: "Будни (Пн–Пт)",
   weekly: "Еженедельно",
   monthly: "Ежемесячно",
+  custom: "Расширенное",
 };
 
 const WEEKDAY_NAMES = ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"];

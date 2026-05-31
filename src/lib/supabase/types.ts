@@ -1,3 +1,10 @@
+export type RecurrenceRule = {
+  type: "nth_weekday" | "biweekly";
+  weekday?: number;      // 0=Sun..6=Sat
+  nth?: number;          // 1=first, 2=second, 3=third, 4=fourth, -1=last
+  anchor_date?: string;  // ISO date string for biweekly calculation
+} | null;
+
 export type Category = {
   id: string;
   user_id: string;
@@ -26,6 +33,7 @@ export type Goal = {
   priority: "low" | "medium" | "high" | "critical" | null;
   tracking_type: "habit" | "milestone";
   target_days: number | null;
+  reminder_time: string | null;
   image_url: string | null;
   sort_order: number;
   completed_at: string | null;
@@ -67,8 +75,10 @@ export type TaskTemplate = {
   goal_id: string | null;
   title: string;
   priority: "low" | "medium" | "high" | "critical" | null;
-  recurrence: "daily" | "weekdays" | "weekly" | "monthly";
+  recurrence: "daily" | "weekdays" | "weekly" | "monthly" | "custom";
   recurrence_days: number[];
+  recurrence_rule: RecurrenceRule | null;
+  reminder_time: string | null;
   is_active: boolean;
   sort_order: number;
   created_at: string;

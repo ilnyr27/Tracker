@@ -1,13 +1,34 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { BottomNav } from "@/components/layout/bottom-nav";
 import { QuickAddSheet } from "@/components/layout/quick-add-sheet";
 import { Onboarding } from "@/components/layout/onboarding";
+import { scheduleGoalNotifications } from "@/lib/notification-scheduler";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [fabOpen, setFabOpen] = useState(false);
+
+  const runScheduler = useCallback(async () => {
+    try {
+      await scheduleGoalNotifications();
+    } catch {
+      // silently fail — notifications are non-critical
+    }
+  }, []);
+
+  useEffect(() => {
+    // Schedule notifications on mount
+    runScheduler();
+
+    // Re-schedule when app comes to foreground
+    function onVisibilityChange() {
+      if (document.visibilityState === "visible") runScheduler();
+    }
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", onVisibilityChange);
+  }, [runScheduler]);
 
   return (
     <div className="flex min-h-screen">
