@@ -621,32 +621,45 @@ function DonutChart({ stats }: { stats: CatStat[] }) {
           <path key={i} d={s.d} fill={s.color} opacity={0.85} stroke="var(--card)" strokeWidth={2} />
         ))}
         {/* Labels around the ring */}
-        {slices.map((s, i) => (
-          <g key={`label-${i}`}>
-            <text
-              x={s.lx}
-              y={s.ly - 5}
-              textAnchor={s.anchor}
-              dominantBaseline="central"
-              className="fill-current"
-              fontSize={9}
-              fontWeight="600"
-            >
-              {s.name}
-            </text>
-            <text
-              x={s.lx}
-              y={s.ly + 7}
-              textAnchor={s.anchor}
-              dominantBaseline="central"
-              fontSize={9}
-              fill={s.color}
-              fontWeight="600"
-            >
-              {s.done}/{s.total}
-            </text>
-          </g>
-        ))}
+        {slices.map((s, i) => {
+          const parts = s.name.includes("/")
+            ? s.name.split(/\s*\/\s*/)
+            : s.name.length > 8
+              ? s.name.split(/\s+/)
+              : [s.name];
+          const lineH = 11;
+          const totalH = (parts.length + 1) * lineH;
+          const startY = s.ly - totalH / 2 + lineH / 2;
+          return (
+            <g key={`label-${i}`}>
+              {parts.map((part, pi) => (
+                <text
+                  key={pi}
+                  x={s.lx}
+                  y={startY + pi * lineH}
+                  textAnchor={s.anchor}
+                  dominantBaseline="central"
+                  className="fill-current"
+                  fontSize={9}
+                  fontWeight="600"
+                >
+                  {part}
+                </text>
+              ))}
+              <text
+                x={s.lx}
+                y={startY + parts.length * lineH}
+                textAnchor={s.anchor}
+                dominantBaseline="central"
+                fontSize={9}
+                fill={s.color}
+                fontWeight="600"
+              >
+                {s.done}/{s.total}
+              </text>
+            </g>
+          );
+        })}
         {/* Center text */}
         <text x={cx} y={cy - 6} textAnchor="middle" className="fill-current" fontSize={20} fontWeight="bold">
           {total}
@@ -667,7 +680,7 @@ function HistogramChart({ stats }: { stats: CatStat[] }) {
   const chartW = stats.length * (barW + gap) - gap;
   const chartH = 160;
   const padTop = 20;
-  const padBottom = 40;
+  const padBottom = 60;
   const svgW = chartW + 20;
   const svgH = chartH + padTop + padBottom;
 
@@ -698,16 +711,26 @@ function HistogramChart({ stats }: { stats: CatStat[] }) {
               <text x={x + barW / 2} y={y - 4} textAnchor="middle" className="fill-current" fontSize={10} fontWeight="600">
                 {s.pct}%
               </text>
-              {/* Label below */}
-              <text
-                x={x + barW / 2}
-                y={padTop + chartH + 14}
-                textAnchor="middle"
-                className="fill-current text-muted-foreground"
-                fontSize={9}
-              >
-                {s.name.length > 6 ? s.name.slice(0, 5) + "…" : s.name}
-              </text>
+              {/* Label below — multi-line */}
+              {(() => {
+                const parts = s.name.includes("/")
+                  ? s.name.split(/\s*\/\s*/)
+                  : s.name.length > 6
+                    ? s.name.split(/\s+/)
+                    : [s.name];
+                return parts.map((part, pi) => (
+                  <text
+                    key={pi}
+                    x={x + barW / 2}
+                    y={padTop + chartH + 12 + pi * 11}
+                    textAnchor="middle"
+                    className="fill-current text-muted-foreground"
+                    fontSize={9}
+                  >
+                    {part}
+                  </text>
+                ));
+              })()}
             </g>
           );
         })}
