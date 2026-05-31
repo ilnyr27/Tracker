@@ -404,7 +404,7 @@ function ListView({
               )}
               <button
                 onClick={() => onDelete(entry.id)}
-                className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-destructive/10 transition-all"
+                className="p-1 rounded hover:bg-destructive/10 transition-all opacity-40 hover:opacity-100"
               >
                 <Trash2 className="h-3 w-3 text-muted-foreground hover:text-destructive" />
               </button>
