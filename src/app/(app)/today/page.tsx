@@ -12,6 +12,9 @@ import {
   Pencil,
   MoreHorizontal,
   Bell,
+  LayoutGrid,
+  List,
+  ChevronRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -79,6 +82,8 @@ export default function MainPage() {
   const [editingCatId, setEditingCatId] = useState<string | null>(null);
   const [editCatName, setEditCatName] = useState("");
   const [catMenuOpen, setCatMenuOpen] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [allGoalsOpen, setAllGoalsOpen] = useState(false);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -208,27 +213,55 @@ export default function MainPage() {
   return (
     <div className="mx-auto max-w-3xl px-4 py-6 pb-28 md:px-6 md:pb-6">
       {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold gradient-text tracking-tight">Life OS</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Твоя жизнь. Твои правила.
-        </p>
+      <div className="mb-6 flex items-end justify-between">
+        <div>
+          <h1 className="text-3xl font-bold gradient-text tracking-tight">Life OS</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Твоя жизнь. Твои правила.
+          </p>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={() => setAllGoalsOpen(true)}
+            className="px-3 py-1.5 rounded-lg text-xs font-medium text-primary hover:bg-primary/10 transition-colors"
+          >
+            Все цели
+          </button>
+          <div className="flex bg-muted rounded-lg p-0.5">
+            <button
+              onClick={() => setViewMode("grid")}
+              className={`p-1.5 rounded-md transition-all ${viewMode === "grid" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground"}`}
+            >
+              <LayoutGrid className="h-4 w-4" />
+            </button>
+            <button
+              onClick={() => setViewMode("list")}
+              className={`p-1.5 rounded-md transition-all ${viewMode === "list" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground"}`}
+            >
+              <List className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
       </div>
 
-      {/* Grid of category cards */}
+      {/* Category cards */}
       {loading ? (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {[...Array(10)].map((_, i) => (
-            <div key={i} className="h-40 rounded-2xl bg-card animate-pulse" />
+        <div className={viewMode === "grid" ? "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4" : "space-y-2"}>
+          {[...Array(viewMode === "grid" ? 10 : 5)].map((_, i) => (
+            <div key={i} className={viewMode === "grid" ? "h-40 rounded-2xl bg-card animate-pulse" : "h-16 rounded-2xl bg-card animate-pulse"} />
           ))}
         </div>
       ) : (
         <AnimatePresence mode="wait">
           <motion.div
+            key={viewMode}
             variants={container}
             initial="hidden"
             animate="show"
-            className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4"
+            className={viewMode === "grid"
+              ? "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4"
+              : "space-y-2"
+            }
           >
             {categories.map((cat) => {
               const catGoals = goalsByCategory.get(cat.id) || [];
@@ -236,6 +269,94 @@ export default function MainPage() {
               const emoji = getEmoji(cat);
               const goalsCount = catGoals.length;
 
+              if (viewMode === "list") {
+                return (
+                  <motion.div
+                    key={cat.id}
+                    variants={item}
+                    className="relative rounded-2xl border border-border/40 bg-card hover:shadow-md hover:border-border/60 transition-all overflow-hidden"
+                  >
+                    <div
+                      className="absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl"
+                      style={{ backgroundColor: cat.color || "#666" }}
+                    />
+                    <button
+                      onClick={() => { setCatMenuOpen(null); openAddGoal(cat.id); }}
+                      className="flex items-center gap-3 w-full px-4 pl-5 py-3 text-left"
+                    >
+                      <div
+                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-xl"
+                        style={{ backgroundColor: `${cat.color || "var(--primary)"}15` }}
+                      >
+                        {emoji}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <span className="text-sm font-semibold block truncate">{cat.name}</span>
+                        <span className="text-xs text-muted-foreground/60">
+                          {goalsCount} {goalsCount === 1 ? "цель" : goalsCount < 5 ? "цели" : "целей"}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-3 shrink-0">
+                        <div className="w-20 h-1.5 rounded-full bg-muted overflow-hidden">
+                          <motion.div
+                            className="h-full rounded-full"
+                            style={{ backgroundColor: cat.color || "var(--primary)" }}
+                            initial={{ width: 0 }}
+                            animate={{ width: `${percent}%` }}
+                            transition={{ duration: 0.8, ease: "easeOut" }}
+                          />
+                        </div>
+                        <span
+                          className="text-sm font-bold tabular-nums w-10 text-right"
+                          style={{ color: cat.color || "var(--primary)" }}
+                        >
+                          {percent}%
+                        </span>
+                        <ChevronRight className="h-4 w-4 text-muted-foreground/30" />
+                      </div>
+                    </button>
+                    {/* Menu for list view */}
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setCatMenuOpen(catMenuOpen === cat.id ? null : cat.id); }}
+                      className="absolute top-2 right-2 p-1.5 rounded-lg text-muted-foreground/30 hover:text-muted-foreground hover:bg-accent/60 transition-all z-10"
+                    >
+                      <MoreHorizontal className="h-3.5 w-3.5" />
+                    </button>
+                    <AnimatePresence>
+                      {catMenuOpen === cat.id && (
+                        <motion.div
+                          initial={{ opacity: 0, scale: 0.9 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          exit={{ opacity: 0, scale: 0.9 }}
+                          transition={{ duration: 0.15 }}
+                          className="absolute top-9 right-2 z-20 bg-popover border border-border/50 rounded-xl shadow-lg py-1 min-w-[140px]"
+                        >
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setCatMenuOpen(null); setEditingCatId(cat.id); setEditCatName(cat.name); setGoalDialogCatId(cat.id); setGoalDialogOpen(true); }}
+                            className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-accent/50 transition-colors"
+                          >
+                            <Pencil className="h-3.5 w-3.5" /> Переименовать
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); archiveCategory(cat.id); setCatMenuOpen(null); }}
+                            className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-accent/50 text-amber-500 transition-colors"
+                          >
+                            <Archive className="h-3.5 w-3.5" /> В архив
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); deleteCategory(cat.id); setCatMenuOpen(null); }}
+                            className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-destructive/10 text-destructive transition-colors"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" /> Удалить
+                          </button>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </motion.div>
+                );
+              }
+
+              // Grid view (default)
               return (
                 <motion.div
                   key={cat.id}
@@ -341,9 +462,12 @@ export default function MainPage() {
             <motion.button
               variants={item}
               onClick={() => setAddCatOpen(true)}
-              className="rounded-2xl border-2 border-dashed border-border/30 flex flex-col items-center justify-center gap-2 text-muted-foreground/40 hover:border-primary/40 hover:text-primary/60 transition-all cursor-pointer min-h-[140px]"
+              className={viewMode === "grid"
+                ? "rounded-2xl border-2 border-dashed border-border/30 flex flex-col items-center justify-center gap-2 text-muted-foreground/40 hover:border-primary/40 hover:text-primary/60 transition-all cursor-pointer min-h-[140px]"
+                : "rounded-2xl border-2 border-dashed border-border/30 flex items-center justify-center gap-2 text-muted-foreground/40 hover:border-primary/40 hover:text-primary/60 transition-all cursor-pointer py-4"
+              }
             >
-              <Plus className="h-7 w-7" />
+              <Plus className={viewMode === "grid" ? "h-7 w-7" : "h-5 w-5"} />
               <span className="text-xs font-medium">Добавить категорию</span>
             </motion.button>
           </motion.div>
@@ -440,6 +564,63 @@ export default function MainPage() {
               </Button>
             </div>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* All Goals dialog */}
+      <Dialog open={allGoalsOpen} onOpenChange={setAllGoalsOpen}>
+        <DialogContent className="sm:max-w-lg bg-card border-border/50 max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-lg">Все цели</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {categories.map((cat) => {
+              const catGoals = goalsByCategory.get(cat.id) || [];
+              if (catGoals.length === 0) return null;
+              const emoji = getEmoji(cat);
+              return (
+                <div key={cat.id}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-lg">{emoji}</span>
+                    <span className="text-sm font-semibold" style={{ color: cat.color || undefined }}>{cat.name}</span>
+                    <span className="text-xs text-muted-foreground/50">({catGoals.length})</span>
+                  </div>
+                  <div className="space-y-1 pl-7">
+                    {catGoals.map((goal) => {
+                      const prog = goalProgress.get(goal.id);
+                      const isHabit = goal.tracking_type === "habit";
+                      const done = prog?.done || 0;
+                      const target = goal.target_days || 0;
+                      const isInfinite = target >= 99999;
+                      return (
+                        <div
+                          key={goal.id}
+                          className="flex items-center gap-2 py-1.5 px-2 rounded-lg hover:bg-accent/30 transition-colors cursor-pointer"
+                          onClick={() => { setAllGoalsOpen(false); setGoalDialogCatId(cat.id); setGoalDialogOpen(true); }}
+                        >
+                          <div className="flex-1 min-w-0">
+                            <span className="text-sm truncate block">{goal.title}</span>
+                          </div>
+                          {isHabit ? (
+                            <span className="text-xs text-muted-foreground tabular-nums shrink-0">
+                              {done}/{isInfinite ? "∞" : target}
+                            </span>
+                          ) : (
+                            <span className={`text-xs shrink-0 ${goal.status === "completed" ? "text-green-500" : "text-muted-foreground"}`}>
+                              {goal.status === "completed" ? "Готово" : "В процессе"}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+            {goals.length === 0 && (
+              <p className="text-sm text-muted-foreground text-center py-8">Целей пока нет</p>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </div>
@@ -780,47 +961,51 @@ function CategoryGoalsDialog({
     const { data: userData } = await supabase.auth.getUser();
     if (!userData.user) return;
 
-    const { data: goalData } = await supabase.from("goals").insert({
+    const goalPayload: Record<string, unknown> = {
       user_id: userData.user.id,
       category_id: categoryId,
       title: title.trim(),
       tracking_type: trackingType,
       target_days: trackingType === "habit" ? (targetDays === "∞" ? 99999 : parseInt(targetDays) || 30) : null,
-      reminder_time: reminderTime || null,
       level: "month",
       sort_order: 0,
-    }).select().single();
+    };
+    if (reminderTime) goalPayload.reminder_time = reminderTime;
+
+    const { data: goalData } = await supabase.from("goals").insert(goalPayload).select().single();
 
     // Create task template for non-daily recurrence
     if (trackingType === "habit" && goalData) {
       if (recurrenceMode === "weekly" && weekDays.length > 0) {
-        await supabase.from("task_templates").insert({
+        const tmplPayload: Record<string, unknown> = {
           user_id: userData.user.id,
           goal_id: goalData.id,
           category_id: categoryId,
           title: title.trim(),
           recurrence: "weekly",
           recurrence_days: weekDays,
-          reminder_time: reminderTime || null,
           sort_order: 0,
-        });
+        };
+        if (reminderTime) tmplPayload.reminder_time = reminderTime;
+        await supabase.from("task_templates").insert(tmplPayload);
       } else if (recurrenceMode === "advanced") {
-        await supabase.from("task_templates").insert({
+        const tmplPayload: Record<string, unknown> = {
           user_id: userData.user.id,
           goal_id: goalData.id,
           category_id: categoryId,
           title: title.trim(),
           recurrence: "custom",
           recurrence_days: [],
-          recurrence_rule: {
-            type: advancedType,
-            weekday: advancedWeekday,
-            ...(advancedType === "nth_weekday" ? { nth: advancedNth } : {}),
-            ...(advancedType === "biweekly" ? { anchor_date: new Date().toISOString().slice(0, 10) } : {}),
-          },
-          reminder_time: reminderTime || null,
           sort_order: 0,
-        });
+        };
+        tmplPayload.recurrence_rule = {
+          type: advancedType,
+          weekday: advancedWeekday,
+          ...(advancedType === "nth_weekday" ? { nth: advancedNth } : {}),
+          ...(advancedType === "biweekly" ? { anchor_date: new Date().toISOString().slice(0, 10) } : {}),
+        };
+        if (reminderTime) tmplPayload.reminder_time = reminderTime;
+        await supabase.from("task_templates").insert(tmplPayload);
       }
     }
 

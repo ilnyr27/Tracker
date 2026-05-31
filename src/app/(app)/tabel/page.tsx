@@ -9,6 +9,7 @@ import {
   startOfMonth,
   endOfMonth,
   eachDayOfInterval,
+  addDays,
   addWeeks,
   subWeeks,
   addMonths,
@@ -45,7 +46,7 @@ function getEmoji(cat: Category): string {
 }
 
 
-type ViewMode = "week" | "month";
+type ViewMode = "week" | "weekFromToday" | "month";
 type ChartType = "radar" | "donut" | "histogram";
 
 const CHART_TYPES: { id: ChartType; label: string; icon: typeof Radar }[] = [
@@ -65,12 +66,16 @@ export default function MatrixPage() {
   const [loading, setLoading] = useState(true);
   const [chartType, setChartType] = useState<ChartType>("radar");
 
-  const rangeStart = viewMode === "week"
-    ? startOfWeek(currentDate, { weekStartsOn: 1 })
-    : startOfMonth(currentDate);
-  const rangeEnd = viewMode === "week"
-    ? endOfWeek(currentDate, { weekStartsOn: 1 })
-    : endOfMonth(currentDate);
+  const rangeStart = viewMode === "month"
+    ? startOfMonth(currentDate)
+    : viewMode === "weekFromToday"
+      ? startOfDay(currentDate)
+      : startOfWeek(currentDate, { weekStartsOn: 1 });
+  const rangeEnd = viewMode === "month"
+    ? endOfMonth(currentDate)
+    : viewMode === "weekFromToday"
+      ? addDays(startOfDay(currentDate), 6)
+      : endOfWeek(currentDate, { weekStartsOn: 1 });
   const days = eachDayOfInterval({ start: rangeStart, end: rangeEnd });
 
   const startStr = format(rangeStart, "yyyy-MM-dd");
@@ -197,13 +202,13 @@ export default function MatrixPage() {
   }
 
   function navigateBack() {
-    if (viewMode === "week") setCurrentDate(subWeeks(currentDate, 1));
-    else setCurrentDate(subMonths(currentDate, 1));
+    if (viewMode === "month") setCurrentDate(subMonths(currentDate, 1));
+    else setCurrentDate(subWeeks(currentDate, 1));
   }
 
   function navigateForward() {
-    if (viewMode === "week") setCurrentDate(addWeeks(currentDate, 1));
-    else setCurrentDate(addMonths(currentDate, 1));
+    if (viewMode === "month") setCurrentDate(addMonths(currentDate, 1));
+    else setCurrentDate(addWeeks(currentDate, 1));
   }
 
   const monthLabel = format(currentDate, "LLL", { locale: ru });
@@ -290,7 +295,17 @@ export default function MatrixPage() {
               viewMode === "week" ? "bg-primary/10 text-primary font-medium" : "text-muted-foreground hover:bg-accent/50"
             }`}
           >
-            Неделя
+            Пн–Вс
+          </button>
+          <button
+            role="tab"
+            aria-selected={viewMode === "weekFromToday"}
+            onClick={() => { setViewMode("weekFromToday"); setCurrentDate(new Date()); }}
+            className={`px-3 py-1.5 transition-colors ${
+              viewMode === "weekFromToday" ? "bg-primary/10 text-primary font-medium" : "text-muted-foreground hover:bg-accent/50"
+            }`}
+          >
+            От сегодня
           </button>
           <button
             role="tab"

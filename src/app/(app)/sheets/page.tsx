@@ -608,8 +608,148 @@ function TableView({
     setEditingCell(null);
   }
 
+  const FORMULA_SUGGESTIONS = ["SUM", "AVERAGE", "MIN", "MAX", "COUNT"];
+  const [showSuggestions, setShowSuggestions] = useState(false);
+
+  // Get selected cell info for formula bar
+  const selectedEntry = selectedCell ? entries.find((e) => selectedCell.startsWith(e.id)) : null;
+  const selectedCol = selectedCell?.split("-").pop() || "";
+  const selectedRowIdx = selectedEntry ? entries.indexOf(selectedEntry) : -1;
+  const selectedCellRef = selectedEntry ? `${selectedCol}${selectedRowIdx + 1}` : "";
+  const selectedRaw = selectedEntry && selectedCol ? getRawValue(selectedEntry, selectedCol) : "";
+
+  function handleFormulaBarChange(value: string) {
+    setEditValue(value);
+    setShowSuggestions(value.startsWith("=") && value.length >= 1);
+    if (selectedEntry && selectedCol) {
+      const key = `${selectedEntry.id}-${selectedCol}`;
+      if (editingCell !== key) {
+        setEditingCell(key);
+      }
+    }
+  }
+
+  function handleFormulaBarKeyDown(e: React.KeyboardEvent) {
+    if (e.key === "Enter" && selectedEntry && selectedCol) {
+      commitEdit(selectedEntry.id, selectedCol);
+      setShowSuggestions(false);
+    }
+    if (e.key === "Escape") {
+      setEditingCell(null);
+      setShowSuggestions(false);
+    }
+  }
+
+  function insertFormula(fn: string) {
+    setEditValue(`=${fn}(`);
+    setShowSuggestions(false);
+    if (selectedEntry && selectedCol) {
+      const key = `${selectedEntry.id}-${selectedCol}`;
+      if (editingCell !== key) setEditingCell(key);
+    }
+  }
+
+  // Navigate cells with arrow keys / Tab / Enter
+  function handleCellKeyDown(e: React.KeyboardEvent, entryId: string, col: string, rowIdx: number) {
+    const colIdx = cols.indexOf(col);
+
+    if (e.key === "Enter") {
+      if (editingCell === `${entryId}-${col}`) {
+        commitEdit(entryId, col);
+        // Move down
+        if (rowIdx + 1 < entries.length) {
+          const nextEntry = entries[rowIdx + 1];
+          setSelectedCell(`${nextEntry.id}-${col}`);
+        }
+      } else {
+        startEditing(entryId, col, getRawValue(entries.find((e) => e.id === entryId)!, col));
+      }
+      e.preventDefault();
+    }
+    if (e.key === "Tab") {
+      e.preventDefault();
+      if (editingCell) commitEdit(entryId, col);
+      const nextColIdx = e.shiftKey ? colIdx - 1 : colIdx + 1;
+      if (nextColIdx >= 0 && nextColIdx < cols.length) {
+        setSelectedCell(`${entryId}-${cols[nextColIdx]}`);
+      } else if (!e.shiftKey && rowIdx + 1 < entries.length) {
+        setSelectedCell(`${entries[rowIdx + 1].id}-${cols[0]}`);
+      }
+    }
+    if (e.key === "Escape") {
+      setEditingCell(null);
+    }
+    if (!editingCell) {
+      if (e.key === "ArrowDown" && rowIdx + 1 < entries.length) {
+        setSelectedCell(`${entries[rowIdx + 1].id}-${col}`);
+        e.preventDefault();
+      }
+      if (e.key === "ArrowUp" && rowIdx > 0) {
+        setSelectedCell(`${entries[rowIdx - 1].id}-${col}`);
+        e.preventDefault();
+      }
+      if (e.key === "ArrowRight" && colIdx + 1 < cols.length) {
+        setSelectedCell(`${entryId}-${cols[colIdx + 1]}`);
+        e.preventDefault();
+      }
+      if (e.key === "ArrowLeft" && colIdx > 0) {
+        setSelectedCell(`${entryId}-${cols[colIdx - 1]}`);
+        e.preventDefault();
+      }
+      // Start typing to edit
+      if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
+        startEditing(entryId, col, "");
+        setEditValue(e.key);
+        e.preventDefault();
+      }
+      if (e.key === "Delete" || e.key === "Backspace") {
+        const entry = entries.find((en) => en.id === entryId);
+        if (entry) onUpdate(entryId, { ...entry.data, [col]: "" });
+        e.preventDefault();
+      }
+    }
+  }
+
   return (
     <div className="rounded-2xl border border-border/50 bg-card/80 overflow-hidden">
+      {/* Formula bar */}
+      <div className="flex items-center gap-2 px-3 py-1.5 border-b border-border/30 bg-muted/20 relative">
+        <span className="text-[10px] font-mono font-bold text-muted-foreground/60 w-8 text-center shrink-0">
+          {selectedCellRef || "—"}
+        </span>
+        <div className="w-px h-4 bg-border/50" />
+        <span className="text-[10px] text-muted-foreground/40 shrink-0">fx</span>
+        <input
+          value={editingCell && selectedEntry ? editValue : selectedRaw}
+          onChange={(e) => handleFormulaBarChange(e.target.value)}
+          onKeyDown={handleFormulaBarKeyDown}
+          onFocus={() => {
+            if (selectedEntry && selectedCol && !editingCell) {
+              startEditing(selectedEntry.id, selectedCol, selectedRaw);
+            }
+          }}
+          placeholder="Выберите ячейку"
+          className="flex-1 bg-transparent border-0 outline-none text-sm h-7 font-mono"
+        />
+        {/* Formula suggestions */}
+        {showSuggestions && (
+          <div className="absolute top-full left-12 z-30 bg-popover border border-border/50 rounded-lg shadow-lg py-1 mt-0.5">
+            {FORMULA_SUGGESTIONS.map((fn) => (
+              <button
+                key={fn}
+                onClick={() => insertFormula(fn)}
+                className="block w-full text-left px-3 py-1.5 text-xs hover:bg-accent/50 transition-colors font-mono"
+              >
+                <span className="text-primary font-medium">={fn}</span>
+                <span className="text-muted-foreground/50 ml-1">
+                  ({fn === "SUM" ? "диапазон" : fn === "AVERAGE" ? "среднее" : fn === "MIN" ? "минимум" : fn === "MAX" ? "максимум" : "кол-во"})
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
       <div className="overflow-x-auto">
         <table className="w-full text-sm border-collapse">
           <thead>
@@ -650,20 +790,37 @@ function TableView({
                   return (
                     <td
                       key={col}
-                      className={`px-0 py-0 border-r border-border/15 relative ${
+                      tabIndex={0}
+                      className={`px-0 py-0 border-r border-border/15 relative outline-none ${
                         isSelected ? "ring-2 ring-primary/50 ring-inset z-10" : ""
                       }`}
-                      onClick={() => setSelectedCell(cellKey)}
+                      onClick={() => {
+                        setSelectedCell(cellKey);
+                        setShowSuggestions(false);
+                      }}
                       onDoubleClick={() => startEditing(entry.id, col, raw)}
+                      onKeyDown={(e) => handleCellKeyDown(e, entry.id, col, rowIdx)}
                     >
                       {isEditing ? (
                         <input
                           value={editValue}
-                          onChange={(e) => setEditValue(e.target.value)}
-                          onBlur={() => commitEdit(entry.id, col)}
+                          onChange={(e) => {
+                            setEditValue(e.target.value);
+                            setShowSuggestions(e.target.value.startsWith("="));
+                          }}
+                          onBlur={() => { commitEdit(entry.id, col); setShowSuggestions(false); }}
                           onKeyDown={(e) => {
-                            if (e.key === "Enter") commitEdit(entry.id, col);
-                            if (e.key === "Escape") setEditingCell(null);
+                            if (e.key === "Enter") { commitEdit(entry.id, col); setShowSuggestions(false); }
+                            if (e.key === "Escape") { setEditingCell(null); setShowSuggestions(false); }
+                            if (e.key === "Tab") {
+                              e.preventDefault();
+                              commitEdit(entry.id, col);
+                              const colIdx = cols.indexOf(col);
+                              const nextColIdx = e.shiftKey ? colIdx - 1 : colIdx + 1;
+                              if (nextColIdx >= 0 && nextColIdx < cols.length) {
+                                setSelectedCell(`${entry.id}-${cols[nextColIdx]}`);
+                              }
+                            }
                           }}
                           autoFocus
                           className="w-full h-full px-2 py-1.5 bg-white dark:bg-card outline-none text-sm border-0"
@@ -708,7 +865,7 @@ function TableView({
           Добавить строку
         </button>
         <span className="text-[10px] text-muted-foreground/30 px-4">
-          Формулы: =SUM(A1:A5) =AVERAGE =MIN =MAX =COUNT =A1+B1
+          Формулы: =SUM =AVERAGE =MIN =MAX =COUNT =A1+B1
         </span>
       </div>
     </div>
