@@ -1016,11 +1016,12 @@ function SwipeableGoalCard({
 
       {/* Card content */}
       <div
-        className="relative rounded-xl border border-border/30 p-4 bg-card transition-transform"
+        className="relative rounded-xl border border-border/30 p-4 bg-card transition-transform cursor-pointer"
         style={{ transform: swipeX !== 0 ? `translateX(${swipeX}px)` : undefined }}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
+        onClick={() => { if (!isEditing && !swiping.current) onEditFull(); }}
       >
         {/* Inline edit mode */}
         {isEditing ? (
@@ -1046,7 +1047,7 @@ function SwipeableGoalCard({
           isInfinite ? (
             <div>
               <div className="flex items-center justify-between">
-                <span className="text-sm font-medium cursor-pointer" onClick={onEditFull}>{goal.title}</span>
+                <span className="text-sm font-medium">{goal.title}</span>
                 <div className="flex items-center gap-1.5">
                   <Flame className="h-4 w-4 text-orange-500" />
                   <span className="text-lg font-bold tabular-nums" style={{ color: cat?.color || "var(--primary)" }}>
@@ -1079,9 +1080,9 @@ function SwipeableGoalCard({
           ) : (
             <div>
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium cursor-pointer" onClick={onEditFull}>{goal.title}</span>
+                <span className="text-sm font-medium">{goal.title}</span>
                 {editingTarget ? (
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                     <span className="text-sm text-muted-foreground tabular-nums">{done}/</span>
                     <input
                       type="number"
@@ -1107,7 +1108,7 @@ function SwipeableGoalCard({
                 ) : (
                   <span
                     className="text-sm text-muted-foreground tabular-nums cursor-pointer hover:text-foreground transition-colors"
-                    onClick={() => { setEditingTarget(true); setEditTargetVal(String(target)); }}
+                    onClick={(e) => { e.stopPropagation(); setEditingTarget(true); setEditTargetVal(String(target)); }}
                     title="Нажми чтобы изменить цель"
                   >
                     {done}/{target}{" "}
@@ -1130,7 +1131,7 @@ function SwipeableGoalCard({
           )
         ) : (
           <button
-            onClick={onToggleMilestone}
+            onClick={(e) => { e.stopPropagation(); onToggleMilestone(); }}
             className="flex items-center gap-3 w-full text-left min-h-[44px]"
           >
             <div
@@ -1144,7 +1145,6 @@ function SwipeableGoalCard({
             </div>
             <span
               className={`text-sm flex-1 ${goal.status === "completed" ? "line-through text-muted-foreground/50" : ""}`}
-              onClick={(e) => { e.stopPropagation(); e.preventDefault(); onEditFull(); }}
             >
               {goal.title}
             </span>
@@ -1153,7 +1153,7 @@ function SwipeableGoalCard({
 
         {/* Desktop action buttons — centered below content */}
         {!isEditing && (
-          <div className="hidden md:flex items-center justify-center gap-1 mt-3 pt-2 border-t border-border/20">
+          <div className="hidden md:flex items-center justify-center gap-1 mt-3 pt-2 border-t border-border/20" onClick={(e) => e.stopPropagation()}>
             <button
               onClick={onEditFull}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg text-muted-foreground/60 hover:text-primary hover:bg-primary/10 transition-colors"
