@@ -203,22 +203,23 @@ function SheetsPageInner() {
 
   return (
     <div className="mx-auto max-w-3xl p-4 pb-24 md:pb-4">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-4">
-        <h1 className="text-xl font-bold gradient-text">Листы</h1>
-        <Button
-          size="sm"
-          className="gradient-primary text-white border-0 hover:opacity-90"
-          onClick={() => setCreateOpen(true)}
-        >
-          <Plus className="h-4 w-4 mr-1" />
-          Новый лист
-        </Button>
-      </div>
+      {/* Header + Tab bar — sticky */}
+      <div className="sticky top-0 z-10 bg-background pb-2">
+        <div className="flex items-center justify-between mb-3 pt-1">
+          <h1 className="text-xl font-bold gradient-text">Листы</h1>
+          <Button
+            size="sm"
+            className="gradient-primary text-white border-0 hover:opacity-90"
+            onClick={() => setCreateOpen(true)}
+          >
+            <Plus className="h-4 w-4 mr-1" />
+            Новый лист
+          </Button>
+        </div>
 
-      {/* Tab bar */}
-      {tabs.length > 0 && (
-        <div className="grid grid-cols-2 gap-1.5 mb-4">
+        {/* Tab bar */}
+        {tabs.length > 0 && (
+          <div className="grid grid-cols-2 gap-1.5">
           {tabs.map((tab) => {
             const TypeIcon = TAB_TYPE_CONFIG[tab.tab_type].icon;
             const displayName = tab.name.length > 20 ? tab.name.slice(0, 18) + "…" : tab.name;
@@ -250,8 +251,9 @@ function SheetsPageInner() {
               </button>
             );
           })}
-        </div>
-      )}
+          </div>
+        )}
+      </div>
 
       {/* Content */}
       {loading ? (
