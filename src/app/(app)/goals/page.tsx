@@ -616,6 +616,7 @@ function GoalDialog({
       category_id: categoryId === "none" ? null : categoryId,
       parent_goal_id: parentGoalId === "none" ? null : parentGoalId,
       target_date: targetDate || null,
+      tracking_type: "milestone" as const,
       status,
       completed_at: completedAt,
     };
@@ -661,12 +662,12 @@ function GoalDialog({
             className="bg-input/50 border-border/50 resize-none text-sm"
           />
 
-          <div className={`grid ${kanbanMode === "tasks" && !isEdit ? "grid-cols-1" : "grid-cols-2"} gap-3`}>
+          <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-xs text-muted-foreground mb-1.5 block">Уровень</label>
               <Select value={level} onValueChange={(v) => setLevel(v as Goal["level"])}>
                 <SelectTrigger className="h-11 bg-input/50 border-border/50">
-                  <SelectValue />
+                  <SelectValue placeholder="Выбрать уровень" />
                 </SelectTrigger>
                 <SelectContent>
                   {LEVEL_ORDER.map((l) => (
@@ -676,22 +677,20 @@ function GoalDialog({
               </Select>
             </div>
 
-            {(kanbanMode === "goals" || isEdit) && (
-              <div>
-                <label className="text-xs text-muted-foreground mb-1.5 block">Категория</label>
-                <Select value={categoryId} onValueChange={(v) => setCategoryId(v ?? "none")}>
-                  <SelectTrigger className="h-11 bg-input/50 border-border/50">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Без категории</SelectItem>
-                    {categories.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
+            <div>
+              <label className="text-xs text-muted-foreground mb-1.5 block">Категория</label>
+              <Select value={categoryId} onValueChange={(v) => setCategoryId(v ?? "none")}>
+                <SelectTrigger className="h-11 bg-input/50 border-border/50">
+                  <SelectValue placeholder="Без категории" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Без категории</SelectItem>
+                  {categories.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           {isEdit && (
@@ -699,7 +698,7 @@ function GoalDialog({
               <label className="text-xs text-muted-foreground mb-1.5 block">Статус</label>
               <Select value={status} onValueChange={(v) => setStatus(v as ColumnId)}>
                 <SelectTrigger className="h-11 bg-input/50 border-border/50">
-                  <SelectValue />
+                  <SelectValue placeholder="Статус" />
                 </SelectTrigger>
                 <SelectContent>
                   {COLUMNS.map((col) => (
@@ -715,7 +714,7 @@ function GoalDialog({
               <label className="text-xs text-muted-foreground mb-1.5 block">Родительская цель</label>
               <Select value={parentGoalId} onValueChange={(v) => setParentGoalId(v ?? "none")}>
                 <SelectTrigger className="h-11 bg-input/50 border-border/50">
-                  <SelectValue />
+                  <SelectValue placeholder="Нет (верхний уровень)" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">Нет (верхний уровень)</SelectItem>
