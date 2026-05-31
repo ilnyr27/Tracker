@@ -40,9 +40,11 @@ import {
   useSensors,
   useDroppable,
   useDraggable,
-  closestCorners,
+  pointerWithin,
+  rectIntersection,
   type DragEndEvent,
   type DragStartEvent,
+  type CollisionDetection,
 } from "@dnd-kit/core";
 import type { Goal, Category } from "@/lib/supabase/types";
 
@@ -147,6 +149,13 @@ export default function GoalsPage() {
     if (goal) setDraggedGoal(goal);
   }
 
+  // Custom collision: prefer pointerWithin, fall back to rectIntersection
+  const collisionDetection: CollisionDetection = (args) => {
+    const pointerCollisions = pointerWithin(args);
+    if (pointerCollisions.length > 0) return pointerCollisions;
+    return rectIntersection(args);
+  };
+
   function handleDragEnd(event: DragEndEvent) {
     setDraggedGoal(null);
     const { active, over } = event;
@@ -155,24 +164,8 @@ export default function GoalsPage() {
     const goalId = active.id as string;
     const overId = over.id as string;
 
-    // Determine target column
-    let targetColumn: ColumnId | null = null;
-
-    // Dropped on a column directly
-    if (COLUMNS.some((c) => c.id === overId)) {
-      targetColumn = overId as ColumnId;
-    }
-    // Dropped on a card (droppable id = "card-{goalId}")
-    else if (overId.startsWith("card-")) {
-      const data = over.data?.current as { column?: ColumnId } | undefined;
-      if (data?.column) {
-        targetColumn = data.column;
-      } else {
-        const overGoalId = overId.replace("card-", "");
-        const overGoal = goals.find((g) => g.id === overGoalId);
-        if (overGoal) targetColumn = overGoal.status;
-      }
-    }
+    // Only columns are droppable — overId is always a column id
+    const targetColumn = COLUMNS.find((c) => c.id === overId)?.id ?? null;
 
     if (targetColumn) {
       const currentGoal = goals.find((g) => g.id === goalId);
@@ -313,7 +306,7 @@ export default function GoalsPage() {
       ) : (
         <DndContext
           sensors={sensors}
-          collisionDetection={closestCorners}
+          collisionDetection={collisionDetection}
           onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}
         >
@@ -449,7 +442,7 @@ function DroppableColumn({
   );
 }
 
-// ── Draggable + Droppable Card ──
+// ── Draggable Card ──
 function DraggableCard({
   goal,
   catMap,
@@ -465,12 +458,8 @@ function DraggableCard({
   onEdit: (g: Goal) => void;
   onDelete: (id: string) => void;
 }) {
-  const { attributes, listeners, setNodeRef: setDragRef, transform, isDragging } = useDraggable({
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: goal.id,
-  });
-  const { setNodeRef: setDropRef } = useDroppable({
-    id: `card-${goal.id}`,
-    data: { goalId: goal.id, column: currentColumn },
   });
 
   const cat = goal.category_id ? catMap.get(goal.category_id) : null;
@@ -478,17 +467,13 @@ function DraggableCard({
   const isArchived = goal.status === "cancelled";
   const moveTargets = COLUMNS.filter((c) => c.id !== currentColumn);
 
-  const style = transform
-    ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` }
-    : undefined;
-
   // Prevent drag start on interactive elements
   const stopDrag = (e: React.PointerEvent) => e.stopPropagation();
 
   return (
     <div
-      ref={(node) => { setDragRef(node); setDropRef(node); }}
-      style={style}
+      ref={setNodeRef}
+      style={transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` } : undefined}
       {...attributes}
       {...listeners}
       className={`group rounded-xl border bg-card p-4 transition-all cursor-grab active:cursor-grabbing ${
