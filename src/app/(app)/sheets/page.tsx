@@ -218,15 +218,16 @@ function SheetsPageInner() {
 
       {/* Tab bar */}
       {tabs.length > 0 && (
-        <div className="flex gap-1 mb-4 overflow-x-auto pb-1">
+        <div className="grid grid-cols-2 gap-1.5 mb-4">
           {tabs.map((tab) => {
             const TypeIcon = TAB_TYPE_CONFIG[tab.tab_type].icon;
+            const displayName = tab.name.length > 20 ? tab.name.slice(0, 18) + "…" : tab.name;
             return (
               <button
                 key={tab.id}
                 onClick={() => setActiveTabId(tab.id)}
                 className={`
-                  relative flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all whitespace-nowrap
+                  relative flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-all truncate
                   ${activeTabId === tab.id
                     ? "text-primary"
                     : "text-muted-foreground hover:text-foreground"
@@ -244,8 +245,8 @@ function SheetsPageInner() {
                     }}
                   />
                 )}
-                <TypeIcon className="h-3.5 w-3.5 relative" />
-                <span className="relative">{tab.name}</span>
+                <TypeIcon className="h-3.5 w-3.5 relative shrink-0" />
+                <span className="relative truncate">{displayName}</span>
               </button>
             );
           })}
