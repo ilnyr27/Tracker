@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { LogOut, Palette, Repeat, ChevronRight, Bell, BellOff, Archive, Download, Check, Loader2 } from "lucide-react";
+import { LogOut, Palette, Repeat, ChevronRight, Bell, BellOff, Archive } from "lucide-react";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { AccentPicker } from "@/components/layout/accent-picker";
 import Link from "next/link";
@@ -55,83 +55,6 @@ export default function SettingsPage() {
     if (result === "granted") {
       await registerServiceWorker();
     }
-  }
-
-  // Export
-  const [showExport, setShowExport] = useState(false);
-  const [exportItems, setExportItems] = useState({
-    categories: true,
-    goals: true,
-    tasks: true,
-    notes: true,
-    journal: true,
-    photos: false,
-    sheets: true,
-  });
-  const [exporting, setExporting] = useState(false);
-
-  function toggleExportItem(key: keyof typeof exportItems) {
-    setExportItems((prev) => ({ ...prev, [key]: !prev[key] }));
-  }
-
-  async function handleExport() {
-    setExporting(true);
-    const supabase = createClient();
-    const result: Record<string, unknown> = {};
-
-    const selected = Object.entries(exportItems).filter(([, v]) => v).map(([k]) => k);
-    if (selected.length === 0) { setExporting(false); return; }
-
-    const queries: Promise<void>[] = [];
-
-    if (exportItems.categories) {
-      queries.push(
-        (async () => { const { data } = await supabase.from("categories").select("*").order("sort_order"); result.categories = data; })()
-      );
-    }
-    if (exportItems.goals) {
-      queries.push(
-        (async () => { const { data } = await supabase.from("goals").select("*").order("created_at"); result.goals = data; })()
-      );
-    }
-    if (exportItems.tasks) {
-      queries.push(
-        (async () => { const { data } = await supabase.from("tasks").select("*").order("scheduled_date"); result.tasks = data; })()
-      );
-    }
-    if (exportItems.notes) {
-      queries.push(
-        (async () => { const { data } = await supabase.from("notes").select("*").order("note_date"); result.notes = data; })()
-      );
-    }
-    if (exportItems.journal) {
-      queries.push(
-        (async () => { const { data } = await supabase.from("daily_entries").select("*").order("entry_date"); result.journal = data; })()
-      );
-    }
-    if (exportItems.sheets) {
-      queries.push(
-        (async () => {
-          const { data: tabs } = await supabase.from("custom_tabs").select("*").order("sort_order");
-          if (tabs) {
-            const { data: entries } = await supabase.from("tab_entries").select("*").order("sort_order");
-            result.sheets = { tabs, entries: entries || [] };
-          }
-        })()
-      );
-    }
-
-    await Promise.all(queries);
-
-    const json = JSON.stringify(result, null, 2);
-    const blob = new Blob([json], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `life-os-export-${new Date().toISOString().slice(0, 10)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-    setExporting(false);
   }
 
   async function handleLogout() {
@@ -270,85 +193,6 @@ export default function SettingsPage() {
             </span>
             <ChevronRight className="h-4 w-4" />
           </Link>
-        </CardContent>
-      </Card>
-
-      {/* Export */}
-      <Card className="border-border/50 bg-card/80">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Download className="h-4 w-4 text-primary" />
-            Выгрузка
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {!showExport ? (
-            <button
-              onClick={() => setShowExport(true)}
-              className="flex items-center justify-between w-full py-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <span>Экспорт данных</span>
-              <ChevronRight className="h-4 w-4" />
-            </button>
-          ) : (
-            <div className="space-y-3">
-              <p className="text-xs text-muted-foreground">Выбери, что выгрузить:</p>
-              <div className="space-y-1">
-                {([
-                  { key: "categories" as const, label: "Категории" },
-                  { key: "goals" as const, label: "Цели" },
-                  { key: "tasks" as const, label: "Задачи" },
-                  { key: "notes" as const, label: "Заметки" },
-                  { key: "journal" as const, label: "Журнал" },
-                  { key: "sheets" as const, label: "Листы (таблицы)" },
-                ]).map((item) => (
-                  <label
-                    key={item.key}
-                    className="flex items-center gap-3 py-2 cursor-pointer"
-                  >
-                    <button
-                      onClick={() => toggleExportItem(item.key)}
-                      className={`h-5 w-5 rounded-md border-2 flex items-center justify-center transition-all ${
-                        exportItems[item.key]
-                          ? "bg-primary border-primary text-white"
-                          : "border-border/60 bg-transparent"
-                      }`}
-                    >
-                      {exportItems[item.key] && <Check className="h-3 w-3" />}
-                    </button>
-                    <span className="text-sm">{item.label}</span>
-                  </label>
-                ))}
-              </div>
-              <div className="flex gap-2 pt-1">
-                <Button
-                  size="sm"
-                  className="gradient-primary text-white border-0"
-                  onClick={handleExport}
-                  disabled={exporting || Object.values(exportItems).every((v) => !v)}
-                >
-                  {exporting ? (
-                    <>
-                      <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-                      Загрузка...
-                    </>
-                  ) : (
-                    <>
-                      <Download className="h-3.5 w-3.5 mr-1.5" />
-                      Скачать JSON
-                    </>
-                  )}
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => setShowExport(false)}
-                >
-                  Отмена
-                </Button>
-              </div>
-            </div>
-          )}
         </CardContent>
       </Card>
 

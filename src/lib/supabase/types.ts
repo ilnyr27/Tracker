@@ -34,6 +34,7 @@ export type Goal = {
   tracking_type: "habit" | "milestone";
   target_days: number | null;
   reminder_time: string | null;
+  reminder_date: string | null;
   image_url: string | null;
   sort_order: number;
   completed_at: string | null;

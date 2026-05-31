@@ -98,6 +98,7 @@ export default function MainPage() {
   const [showGoals, setShowGoals] = useState(false);
   const [dragCatId, setDragCatId] = useState<string | null>(null);
   const [dragOverCatId, setDragOverCatId] = useState<string | null>(null);
+  const [dragOverPos, setDragOverPos] = useState<"above" | "below">("below");
   const [userStatus, setUserStatus] = useState("Баланс — это прогресс");
   const [editingStatus, setEditingStatus] = useState(false);
 
@@ -238,8 +239,12 @@ export default function MainPage() {
       return;
     }
     const oldIdx = categories.findIndex((c) => c.id === dragCatId);
-    const newIdx = categories.findIndex((c) => c.id === targetId);
+    let newIdx = categories.findIndex((c) => c.id === targetId);
     if (oldIdx === -1 || newIdx === -1) return;
+
+    // Adjust insert position based on cursor position
+    if (dragOverPos === "below") newIdx = Math.min(newIdx + 1, categories.length);
+    if (oldIdx < newIdx) newIdx--;
 
     const reordered = [...categories];
     const [moved] = reordered.splice(oldIdx, 1);
@@ -342,19 +347,30 @@ export default function MainPage() {
                     variants={item}
                     draggable
                     onDragStart={() => setDragCatId(cat.id)}
-                    onDragOver={(e) => { e.preventDefault(); setDragOverCatId(cat.id); }}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      setDragOverCatId(cat.id);
+                      setDragOverPos(e.clientY < rect.top + rect.height / 2 ? "above" : "below");
+                    }}
                     onDragEnd={() => { setDragCatId(null); setDragOverCatId(null); }}
                     onDrop={(e) => { e.preventDefault(); handleDrop(cat.id); }}
-                    className={`relative rounded-2xl border bg-card transition-all overflow-hidden ${
-                      dragOverCatId === cat.id && dragCatId !== cat.id
-                        ? "border-primary/50 shadow-md"
-                        : dragCatId === cat.id
-                          ? "opacity-50 border-border/30"
-                          : "border-border/40 hover:shadow-md hover:border-border/60"
+                    className={`relative rounded-2xl border bg-card transition-all ${
+                      dragCatId === cat.id
+                        ? "opacity-50 border-border/30"
+                        : "border-border/40 hover:shadow-md hover:border-border/60"
                     }`}
                   >
+                    {/* Drag insertion line — above */}
+                    {dragOverCatId === cat.id && dragCatId !== cat.id && dragOverPos === "above" && (
+                      <div className="absolute -top-1.5 left-2 right-2 h-0.5 bg-primary rounded-full z-10" />
+                    )}
+                    {/* Drag insertion line — below */}
+                    {dragOverCatId === cat.id && dragCatId !== cat.id && dragOverPos === "below" && (
+                      <div className="absolute -bottom-1.5 left-2 right-2 h-0.5 bg-primary rounded-full z-10" />
+                    )}
                     <div
-                      className="absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl"
+                      className="w-1 absolute left-0 top-0 bottom-0 rounded-l-2xl"
                       style={{ backgroundColor: cat.color || "#666" }}
                     />
                     <div className="flex items-center">
@@ -515,17 +531,27 @@ export default function MainPage() {
                   variants={item}
                   draggable
                   onDragStart={() => setDragCatId(cat.id)}
-                  onDragOver={(e) => { e.preventDefault(); setDragOverCatId(cat.id); }}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    setDragOverCatId(cat.id);
+                    setDragOverPos(e.clientY < rect.top + rect.height / 2 ? "above" : "below");
+                  }}
                   onDragEnd={() => { setDragCatId(null); setDragOverCatId(null); }}
                   onDrop={(e) => { e.preventDefault(); handleDrop(cat.id); }}
                   className={`relative rounded-3xl border bg-card p-5 flex flex-col items-start text-left gap-3 transition-all min-h-[160px] ${
-                    dragOverCatId === cat.id && dragCatId !== cat.id
-                      ? "border-primary/50 shadow-md"
-                      : dragCatId === cat.id
-                        ? "opacity-50 border-border/30"
-                        : "border-border/40 hover:shadow-lg hover:border-border/60"
+                    dragCatId === cat.id
+                      ? "opacity-50 border-border/30"
+                      : "border-border/40 hover:shadow-lg hover:border-border/60"
                   }`}
                 >
+                  {/* Drag insertion line */}
+                  {dragOverCatId === cat.id && dragCatId !== cat.id && dragOverPos === "above" && (
+                    <div className="absolute -top-1.5 left-3 right-3 h-0.5 bg-primary rounded-full z-10" />
+                  )}
+                  {dragOverCatId === cat.id && dragCatId !== cat.id && dragOverPos === "below" && (
+                    <div className="absolute -bottom-1.5 left-3 right-3 h-0.5 bg-primary rounded-full z-10" />
+                  )}
                   {/* Grip/Menu button: tap=menu, hold=drag */}
                   <div
                     className="absolute top-2.5 right-2.5 p-1.5 rounded-lg text-muted-foreground/40 hover:text-muted-foreground hover:bg-accent/60 transition-all z-10 select-none"
@@ -1020,6 +1046,7 @@ function CategoryGoalsDialog({
   const [advancedWeekday, setAdvancedWeekday] = useState(1); // 1=Mon
   const [advancedNth, setAdvancedNth] = useState(1); // 1st occurrence
   const [reminderTime, setReminderTime] = useState("");
+  const [reminderDate, setReminderDate] = useState("");
   const [saving, setSaving] = useState(false);
 
   const cat = categories.find((c) => c.id === categoryId);
@@ -1038,6 +1065,7 @@ function CategoryGoalsDialog({
       setRecurrenceMode("daily");
       setWeekDays([]);
       setReminderTime("");
+      setReminderDate("");
       setEditingGoalId(null);
       setConfirmDeleteId(null);
     }
@@ -1082,8 +1110,24 @@ function CategoryGoalsDialog({
       sort_order: 0,
     };
     if (reminderTime) goalPayload.reminder_time = reminderTime;
+    if (reminderDate) goalPayload.reminder_date = reminderDate;
 
-    const { data: goalData } = await supabase.from("goals").insert(goalPayload).select().single();
+    let { data: goalData, error: goalError } = await supabase.from("goals").insert(goalPayload).select().single();
+
+    // If insert failed, retry without optional columns (migration may not be applied)
+    if (goalError && (reminderTime || reminderDate)) {
+      const fallback = { ...goalPayload };
+      delete fallback.reminder_time;
+      delete fallback.reminder_date;
+      const res = await supabase.from("goals").insert(fallback).select().single();
+      goalData = res.data;
+      goalError = res.error;
+    }
+
+    if (goalError) {
+      setSaving(false);
+      return;
+    }
 
     // Create task template for non-daily recurrence
     if (trackingType === "habit" && goalData) {
@@ -1439,22 +1483,30 @@ function CategoryGoalsDialog({
                 </div>
               </div>
             )}
-            {/* Reminder time */}
+            {/* Reminder */}
             <div>
               <label className="text-xs text-muted-foreground mb-1.5 flex items-center gap-1.5">
                 <Bell className="h-3 w-3" /> Напоминание
               </label>
               <div className="flex items-center gap-2">
+                {trackingType === "milestone" && (
+                  <input
+                    type="date"
+                    value={reminderDate}
+                    onChange={(e) => setReminderDate(e.target.value)}
+                    className="flex-1 h-11 rounded-xl border border-border/50 bg-input/50 px-3 text-sm outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/20"
+                  />
+                )}
                 <input
                   type="time"
                   value={reminderTime}
                   onChange={(e) => setReminderTime(e.target.value)}
                   className="flex-1 h-11 rounded-xl border border-border/50 bg-input/50 px-3 text-sm outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/20"
                 />
-                {reminderTime && (
+                {(reminderTime || reminderDate) && (
                   <button
                     type="button"
-                    onClick={() => setReminderTime("")}
+                    onClick={() => { setReminderTime(""); setReminderDate(""); }}
                     className="p-2 rounded-lg text-muted-foreground/40 hover:text-muted-foreground hover:bg-accent/50 transition-colors"
                   >
                     <Trash2 className="h-4 w-4" />

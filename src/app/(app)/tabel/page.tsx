@@ -14,6 +14,10 @@ import {
   subWeeks,
   addMonths,
   subMonths,
+  addYears,
+  subYears,
+  startOfYear,
+  endOfYear,
   isToday,
   isBefore,
   parseISO,
@@ -46,7 +50,7 @@ function getEmoji(cat: Category): string {
 }
 
 
-type ViewMode = "week" | "weekFromToday" | "month" | "monthFromToday";
+type BaseMode = "week" | "month" | "year";
 type ChartType = "radar" | "donut" | "histogram";
 
 const CHART_TYPES: { id: ChartType; label: string; icon: typeof Radar }[] = [
@@ -58,7 +62,8 @@ const CHART_TYPES: { id: ChartType; label: string; icon: typeof Radar }[] = [
 type CatStat = { name: string; color: string; done: number; total: number; pct: number };
 
 export default function MatrixPage() {
-  const [viewMode, setViewMode] = useState<ViewMode>("week");
+  const [baseMode, setBaseMode] = useState<BaseMode>("week");
+  const [fromToday, setFromToday] = useState(false);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [categories, setCategories] = useState<Category[]>([]);
   const [goals, setGoals] = useState<Goal[]>([]);
@@ -66,19 +71,19 @@ export default function MatrixPage() {
   const [loading, setLoading] = useState(true);
   const [chartType, setChartType] = useState<ChartType>("radar");
 
-  const rangeStart = viewMode === "month"
-    ? startOfMonth(currentDate)
-    : viewMode === "monthFromToday"
-      ? startOfDay(currentDate)
-      : viewMode === "weekFromToday"
-        ? startOfDay(currentDate)
+  const rangeStart = fromToday
+    ? startOfDay(currentDate)
+    : baseMode === "year"
+      ? startOfYear(currentDate)
+      : baseMode === "month"
+        ? startOfMonth(currentDate)
         : startOfWeek(currentDate, { weekStartsOn: 1 });
-  const rangeEnd = viewMode === "month"
-    ? endOfMonth(currentDate)
-    : viewMode === "monthFromToday"
-      ? addDays(startOfDay(currentDate), 29)
-      : viewMode === "weekFromToday"
-        ? addDays(startOfDay(currentDate), 6)
+  const rangeEnd = fromToday
+    ? addDays(startOfDay(currentDate), baseMode === "year" ? 364 : baseMode === "month" ? 29 : 6)
+    : baseMode === "year"
+      ? endOfYear(currentDate)
+      : baseMode === "month"
+        ? endOfMonth(currentDate)
         : endOfWeek(currentDate, { weekStartsOn: 1 });
   const days = eachDayOfInterval({ start: rangeStart, end: rangeEnd });
 
@@ -206,16 +211,20 @@ export default function MatrixPage() {
   }
 
   function navigateBack() {
-    if (viewMode === "month" || viewMode === "monthFromToday") setCurrentDate(subMonths(currentDate, 1));
+    if (baseMode === "year") setCurrentDate(subYears(currentDate, 1));
+    else if (baseMode === "month") setCurrentDate(subMonths(currentDate, 1));
     else setCurrentDate(subWeeks(currentDate, 1));
   }
 
   function navigateForward() {
-    if (viewMode === "month" || viewMode === "monthFromToday") setCurrentDate(addMonths(currentDate, 1));
+    if (baseMode === "year") setCurrentDate(addYears(currentDate, 1));
+    else if (baseMode === "month") setCurrentDate(addMonths(currentDate, 1));
     else setCurrentDate(addWeeks(currentDate, 1));
   }
 
-  const monthLabel = format(currentDate, "LLL", { locale: ru });
+  const periodLabel = baseMode === "year"
+    ? format(currentDate, "yyyy")
+    : format(currentDate, "LLL yyyy", { locale: ru });
 
   // Legend counts
   let legendDone = 0;
@@ -290,28 +299,34 @@ export default function MatrixPage() {
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
-        <div className="flex rounded-xl border border-border/50 overflow-hidden text-xs" role="tablist" aria-label="Период отображения">
-          {([
-            { id: "week" as ViewMode, label: "Пн–Вс" },
-            { id: "weekFromToday" as ViewMode, label: "7 дн" },
-            { id: "month" as ViewMode, label: "Месяц" },
-            { id: "monthFromToday" as ViewMode, label: "30 дн" },
-          ] as const).map((tab) => (
-            <button
-              key={tab.id}
-              role="tab"
-              aria-selected={viewMode === tab.id}
-              onClick={() => {
-                setViewMode(tab.id);
-                if (tab.id === "weekFromToday" || tab.id === "monthFromToday") setCurrentDate(new Date());
-              }}
-              className={`px-2.5 py-1.5 transition-colors ${
-                viewMode === tab.id ? "bg-primary/10 text-primary font-medium" : "text-muted-foreground hover:bg-accent/50"
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
+        <div className="flex items-center gap-2">
+          <div className="flex rounded-xl border border-border/50 overflow-hidden text-xs" role="tablist" aria-label="Период отображения">
+            {([
+              { id: "week" as BaseMode, label: "Неделя" },
+              { id: "month" as BaseMode, label: "Месяц" },
+              { id: "year" as BaseMode, label: "Год" },
+            ] as const).map((tab) => (
+              <button
+                key={tab.id}
+                role="tab"
+                aria-selected={baseMode === tab.id}
+                onClick={() => setBaseMode(tab.id)}
+                className={`px-2.5 py-1.5 transition-colors ${
+                  baseMode === tab.id ? "bg-primary/10 text-primary font-medium" : "text-muted-foreground hover:bg-accent/50"
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+          <button
+            onClick={() => { setFromToday(!fromToday); if (!fromToday) setCurrentDate(new Date()); }}
+            className={`px-2 py-1.5 rounded-lg text-xs border transition-all ${
+              fromToday ? "bg-primary/10 text-primary border-primary/30 font-medium" : "text-muted-foreground border-border/50 hover:bg-accent/50"
+            }`}
+          >
+            Сегодня→
+          </button>
         </div>
       </div>
 
@@ -334,26 +349,36 @@ export default function MatrixPage() {
             <thead className="sticky top-0 z-10 bg-card">
               <tr>
                 <th className="text-left px-3 py-2.5 font-medium text-muted-foreground border-b border-border/30 min-w-[160px] sticky left-0 bg-card z-20">
-                  <span className="text-[10px] uppercase tracking-wider">{monthLabel}</span>
+                  <span className="text-[10px] uppercase tracking-wider">{periodLabel}</span>
                 </th>
                 {days.map((day) => {
                   const today = isToday(day);
                   const dayName = format(day, "EEEEEE", { locale: ru });
                   const isWeekend = day.getDay() === 0 || day.getDay() === 6;
+                  const isYearView = baseMode === "year";
 
                   return (
                     <th
                       key={day.toISOString()}
-                      className={`text-center px-0.5 py-2 font-medium border-b border-border/30 min-w-[32px] ${
+                      className={`text-center font-medium border-b border-border/30 ${
+                        isYearView ? "px-0 py-1 min-w-[14px]" : "px-0.5 py-2 min-w-[32px]"
+                      } ${
                         today ? "text-primary" : isWeekend ? "text-muted-foreground/30" : "text-muted-foreground/60"
                       }`}
+                      title={format(day, "d MMMM, EEEE", { locale: ru })}
                     >
-                      <div className="flex flex-col items-center leading-tight">
-                        <span className="text-[9px] capitalize">{dayName}</span>
-                        <span className={`text-[11px] ${today ? "font-bold bg-primary text-white rounded-full w-5 h-5 flex items-center justify-center mx-auto" : ""}`}>
-                          {format(day, "d")}
+                      {isYearView ? (
+                        <span className={`text-[6px] ${today ? "font-bold text-primary" : ""}`}>
+                          {day.getDate() === 1 ? format(day, "LLL", { locale: ru }).charAt(0).toUpperCase() : ""}
                         </span>
-                      </div>
+                      ) : (
+                        <div className="flex flex-col items-center leading-tight">
+                          <span className="text-[9px] capitalize">{dayName}</span>
+                          <span className={`text-[11px] ${today ? "font-bold bg-primary text-white rounded-full w-5 h-5 flex items-center justify-center mx-auto" : ""}`}>
+                            {format(day, "d")}
+                          </span>
+                        </div>
+                      )}
                     </th>
                   );
                 })}
@@ -402,29 +427,45 @@ export default function MatrixPage() {
                       const goalStart = startOfDay(parseISO(goal.created_at));
                       const beforeGoal = isBefore(day, goalStart);
 
+                      const isYearView = baseMode === "year";
                       return (
                         <td
                           key={dateStr}
-                          className={`text-center px-0.5 py-1.5 ${today ? "bg-primary/3" : ""}`}
+                          className={`text-center ${isYearView ? "px-0 py-0.5" : "px-0.5 py-1.5"} ${today ? "bg-primary/3" : ""}`}
                         >
                           {beforeGoal ? (
-                            <div className="inline-flex h-7 w-7 items-center justify-center" />
+                            <div className={`inline-flex items-center justify-center ${isYearView ? "h-3 w-3" : "h-7 w-7"}`} />
                           ) : (
                             <button
                               onClick={() => toggleCell(goal.id, dateStr)}
-                              className="inline-flex h-7 w-7 items-center justify-center rounded-lg transition-all hover:scale-110"
+                              className={`inline-flex items-center justify-center transition-all ${
+                                isYearView ? "h-3.5 w-3.5 rounded-sm" : "h-7 w-7 rounded-lg hover:scale-110"
+                              }`}
                               aria-label={`${goal.title} — ${format(day, "d MMM", { locale: ru })}${isDone ? " (выполнено)" : ""}`}
+                              title={format(day, "d MMMM", { locale: ru })}
                             >
                               {isDone ? (
-                                <div className="h-5 w-5 rounded-md bg-emerald-500/15 flex items-center justify-center">
-                                  <Check className="h-3.5 w-3.5 text-emerald-500" strokeWidth={3} />
-                                </div>
+                                isYearView ? (
+                                  <div className="h-2.5 w-2.5 rounded-sm bg-emerald-500" />
+                                ) : (
+                                  <div className="h-5 w-5 rounded-md bg-emerald-500/15 flex items-center justify-center">
+                                    <Check className="h-3.5 w-3.5 text-emerald-500" strokeWidth={3} />
+                                  </div>
+                                )
                               ) : isPast ? (
-                                <div className="h-5 w-5 rounded-md bg-red-500/10 flex items-center justify-center">
-                                  <X className="h-3 w-3 text-red-400/70" strokeWidth={2.5} />
-                                </div>
+                                isYearView ? (
+                                  <div className="h-2.5 w-2.5 rounded-sm bg-red-400/40" />
+                                ) : (
+                                  <div className="h-5 w-5 rounded-md bg-red-500/10 flex items-center justify-center">
+                                    <X className="h-3 w-3 text-red-400/70" strokeWidth={2.5} />
+                                  </div>
+                                )
                               ) : (
-                                <div className="h-5 w-5 rounded-md border-2 border-border/50 bg-muted/30" />
+                                isYearView ? (
+                                  <div className="h-2.5 w-2.5 rounded-sm border border-border/40 bg-muted/20" />
+                                ) : (
+                                  <div className="h-5 w-5 rounded-md border-2 border-border/50 bg-muted/30" />
+                                )
                               )}
                             </button>
                           )}
