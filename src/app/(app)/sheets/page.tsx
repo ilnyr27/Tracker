@@ -611,12 +611,21 @@ function TableView({
   const FORMULA_SUGGESTIONS = ["SUM", "AVERAGE", "MIN", "MAX", "COUNT"];
   const [showSuggestions, setShowSuggestions] = useState(false);
 
+  // Formula mode: when editing and value starts with "="
+  const isFormulaMode = !!(editingCell && editValue.startsWith("="));
+
   // Get selected cell info for formula bar
   const selectedEntry = selectedCell ? entries.find((e) => selectedCell.startsWith(e.id)) : null;
   const selectedCol = selectedCell?.split("-").pop() || "";
   const selectedRowIdx = selectedEntry ? entries.indexOf(selectedEntry) : -1;
   const selectedCellRef = selectedEntry ? `${selectedCol}${selectedRowIdx + 1}` : "";
   const selectedRaw = selectedEntry && selectedCol ? getRawValue(selectedEntry, selectedCol) : "";
+
+  // Insert a cell reference into the formula being edited
+  function insertCellRef(col: string, rowIdx: number) {
+    const ref = `${col}${rowIdx + 1}`;
+    setEditValue((prev) => prev + ref);
+  }
 
   function handleFormulaBarChange(value: string) {
     setEditValue(value);
@@ -718,7 +727,7 @@ function TableView({
           {selectedCellRef || "—"}
         </span>
         <div className="w-px h-4 bg-border/50" />
-        <span className="text-[10px] text-muted-foreground/40 shrink-0">fx</span>
+        <span className={`text-[10px] shrink-0 font-medium ${isFormulaMode ? "text-primary" : "text-muted-foreground/40"}`}>fx</span>
         <input
           value={editingCell && selectedEntry ? editValue : selectedRaw}
           onChange={(e) => handleFormulaBarChange(e.target.value)}
@@ -729,8 +738,13 @@ function TableView({
             }
           }}
           placeholder="Выберите ячейку"
-          className="flex-1 bg-transparent border-0 outline-none text-sm h-7 font-mono"
+          className={`flex-1 bg-transparent border-0 outline-none text-sm h-7 font-mono ${isFormulaMode ? "text-primary" : ""}`}
         />
+        {isFormulaMode && (
+          <span className="text-[10px] text-primary/60 shrink-0 animate-pulse">
+            Кликни на ячейку
+          </span>
+        )}
         {/* Formula suggestions */}
         {showSuggestions && (
           <div className="absolute top-full left-12 z-30 bg-popover border border-border/50 rounded-lg shadow-lg py-1 mt-0.5">
@@ -787,14 +801,28 @@ function TableView({
                   const display = getDisplayValue(entry, col, rowIdx);
                   const isFormula = raw.startsWith("=");
 
+                  // Check if this cell is referenced in the current formula
+                  const isReferenced = isFormulaMode && editValue.toUpperCase().includes(`${col}${rowIdx + 1}`);
+
                   return (
                     <td
                       key={col}
                       tabIndex={0}
                       className={`px-0 py-0 border-r border-border/15 relative outline-none ${
-                        isSelected ? "ring-2 ring-primary/50 ring-inset z-10" : ""
+                        isSelected ? "ring-2 ring-primary/50 ring-inset z-10"
+                        : isReferenced ? "ring-2 ring-amber-400/50 ring-inset z-5 bg-amber-400/5"
+                        : ""
                       }`}
+                      onMouseDown={(e) => {
+                        // In formula mode, clicking another cell inserts its reference
+                        if (isFormulaMode && cellKey !== editingCell) {
+                          e.preventDefault(); // prevent blur on editing input
+                          insertCellRef(col, rowIdx);
+                          return;
+                        }
+                      }}
                       onClick={() => {
+                        if (isFormulaMode && cellKey !== editingCell) return; // handled by onMouseDown
                         setSelectedCell(cellKey);
                         setShowSuggestions(false);
                       }}
