@@ -479,7 +479,7 @@ function RadarChart({ stats }: { stats: CatStat[] }) {
   const n = stats.length;
   if (n < 3) return <p className="text-xs text-muted-foreground text-center py-8">Нужно минимум 3 категории</p>;
 
-  const cx = 150, cy = 150, r = 110;
+  const cx = 160, cy = 160, r = 100;
   const angleStep = (2 * Math.PI) / n;
 
   function polarToXY(angle: number, radius: number) {
@@ -495,7 +495,7 @@ function RadarChart({ stats }: { stats: CatStat[] }) {
 
   return (
     <div className="flex flex-col items-center">
-      <svg viewBox="0 0 300 300" className="w-full max-w-[300px] h-auto">
+      <svg viewBox="0 0 320 320" className="w-full max-w-[320px] h-auto">
         {/* Grid */}
         {gridLevels.map((lvl) => (
           <polygon
@@ -521,34 +521,37 @@ function RadarChart({ stats }: { stats: CatStat[] }) {
         {dataPoints.map((p, i) => (
           <circle key={i} cx={p.x} cy={p.y} r={4} fill={stats[i].color} stroke="white" strokeWidth={2} />
         ))}
-        {/* Labels */}
+        {/* Labels — name + percent inside each petal direction */}
         {stats.map((s, i) => {
-          const labelPos = polarToXY(i * angleStep, r + 18);
+          const labelPos = polarToXY(i * angleStep, r + 30);
           return (
-            <text
-              key={i}
-              x={labelPos.x}
-              y={labelPos.y}
-              textAnchor="middle"
-              dominantBaseline="central"
-              className="fill-current text-muted-foreground"
-              fontSize={10}
-            >
-              {s.name.length > 8 ? s.name.slice(0, 7) + "…" : s.name}
-            </text>
+            <g key={i}>
+              <text
+                x={labelPos.x}
+                y={labelPos.y - 6}
+                textAnchor="middle"
+                dominantBaseline="central"
+                className="fill-current"
+                fontSize={10}
+                fontWeight="600"
+              >
+                {s.name}
+              </text>
+              <text
+                x={labelPos.x}
+                y={labelPos.y + 8}
+                textAnchor="middle"
+                dominantBaseline="central"
+                fontSize={11}
+                fontWeight="700"
+                fill={s.color}
+              >
+                {s.pct}%
+              </text>
+            </g>
           );
         })}
       </svg>
-      {/* Percent labels */}
-      <div className="flex flex-wrap justify-center gap-3 mt-3">
-        {stats.map((s) => (
-          <div key={s.name} className="flex items-center gap-1.5 text-xs">
-            <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: s.color }} />
-            <span className="text-muted-foreground">{s.name}</span>
-            <span className="font-medium">{s.pct}%</span>
-          </div>
-        ))}
-      </div>
     </div>
   );
 }
@@ -558,13 +561,14 @@ function DonutChart({ stats }: { stats: CatStat[] }) {
   const total = stats.reduce((sum, s) => sum + s.done, 0);
   if (total === 0) return <p className="text-xs text-muted-foreground text-center py-8">Нет данных за период</p>;
 
-  const cx = 100, cy = 100, outerR = 85, innerR = 55;
+  const cx = 130, cy = 130, outerR = 80, innerR = 50, labelR = 108;
   let currentAngle = -Math.PI / 2;
 
   const slices = stats.filter((s) => s.done > 0).map((s) => {
     const angle = (s.done / total) * 2 * Math.PI;
     const startAngle = currentAngle;
     const endAngle = currentAngle + angle;
+    const midAngle = startAngle + angle / 2;
     currentAngle = endAngle;
 
     const largeArc = angle > Math.PI ? 1 : 0;
@@ -579,32 +583,55 @@ function DonutChart({ stats }: { stats: CatStat[] }) {
 
     const d = `M ${x1o} ${y1o} A ${outerR} ${outerR} 0 ${largeArc} 1 ${x2o} ${y2o} L ${x1i} ${y1i} A ${innerR} ${innerR} 0 ${largeArc} 0 ${x2i} ${y2i} Z`;
 
-    return { ...s, d };
+    // Label position outside the ring
+    const lx = cx + labelR * Math.cos(midAngle);
+    const ly = cy + labelR * Math.sin(midAngle);
+    const anchor: "start" | "end" | "middle" = lx > cx + 5 ? "start" : lx < cx - 5 ? "end" : "middle";
+
+    return { ...s, d, lx, ly, anchor, midAngle };
   });
 
   return (
     <div className="flex flex-col items-center">
-      <svg viewBox="0 0 200 200" className="w-full max-w-[220px] h-auto">
+      <svg viewBox="0 0 260 260" className="w-full max-w-[280px] h-auto">
         {slices.map((s, i) => (
           <path key={i} d={s.d} fill={s.color} opacity={0.85} stroke="var(--card)" strokeWidth={2} />
         ))}
+        {/* Labels around the ring */}
+        {slices.map((s, i) => (
+          <g key={`label-${i}`}>
+            <text
+              x={s.lx}
+              y={s.ly - 5}
+              textAnchor={s.anchor}
+              dominantBaseline="central"
+              className="fill-current"
+              fontSize={9}
+              fontWeight="600"
+            >
+              {s.name}
+            </text>
+            <text
+              x={s.lx}
+              y={s.ly + 7}
+              textAnchor={s.anchor}
+              dominantBaseline="central"
+              fontSize={9}
+              fill={s.color}
+              fontWeight="600"
+            >
+              {s.done}/{s.total}
+            </text>
+          </g>
+        ))}
         {/* Center text */}
-        <text x={cx} y={cy - 6} textAnchor="middle" className="fill-current" fontSize={22} fontWeight="bold">
+        <text x={cx} y={cy - 6} textAnchor="middle" className="fill-current" fontSize={20} fontWeight="bold">
           {total}
         </text>
-        <text x={cx} y={cy + 12} textAnchor="middle" className="fill-current text-muted-foreground" fontSize={10}>
+        <text x={cx} y={cy + 10} textAnchor="middle" className="fill-current text-muted-foreground" fontSize={9}>
           выполнено
         </text>
       </svg>
-      <div className="flex flex-wrap justify-center gap-3 mt-3">
-        {stats.map((s) => (
-          <div key={s.name} className="flex items-center gap-1.5 text-xs">
-            <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: s.color }} />
-            <span className="text-muted-foreground">{s.name}</span>
-            <span className="font-medium">{s.done}/{s.total}</span>
-          </div>
-        ))}
-      </div>
     </div>
   );
 }
