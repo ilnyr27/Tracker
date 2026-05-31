@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import {
   format,
@@ -23,6 +23,9 @@ import {
   CalendarDays,
   Check,
   X,
+  Radar,
+  PieChart,
+  BarChart3,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion } from "motion/react";
@@ -41,6 +44,15 @@ function getEmoji(cat: Category): string {
 
 
 type ViewMode = "week" | "month";
+type ChartType = "radar" | "donut" | "histogram";
+
+const CHART_TYPES: { id: ChartType; label: string; icon: typeof Radar }[] = [
+  { id: "radar", label: "Лепестковая", icon: Radar },
+  { id: "donut", label: "Круговая", icon: PieChart },
+  { id: "histogram", label: "Гистограмма", icon: BarChart3 },
+];
+
+type CatStat = { name: string; color: string; done: number; total: number; pct: number };
 
 export default function MatrixPage() {
   const [viewMode, setViewMode] = useState<ViewMode>("week");
@@ -49,6 +61,7 @@ export default function MatrixPage() {
   const [goals, setGoals] = useState<Goal[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
+  const [chartType, setChartType] = useState<ChartType>("radar");
 
   const rangeStart = viewMode === "week"
     ? startOfWeek(currentDate, { weekStartsOn: 1 })
@@ -210,6 +223,32 @@ export default function MatrixPage() {
       }
     }
   }
+
+  // Category stats for charts
+  const catStats: CatStat[] = useMemo(() => {
+    return activeCats.map((cat) => {
+      const catGoals = goalsByCategory.get(cat.id) || [];
+      let done = 0;
+      let total = 0;
+      for (const goal of catGoals) {
+        for (const day of days) {
+          const ds = format(day, "yyyy-MM-dd");
+          const past = isBefore(day, new Date()) || isToday(day);
+          if (!past) continue;
+          total++;
+          const task = taskMap.get(`${goal.id}__${ds}`);
+          if (task?.is_done) done++;
+        }
+      }
+      return {
+        name: cat.name,
+        color: cat.color || "#888",
+        done,
+        total,
+        pct: total > 0 ? Math.round((done / total) * 100) : 0,
+      };
+    });
+  }, [activeCats, goalsByCategory, days, taskMap]);
 
   return (
     <div className="p-4 pb-24 md:pb-4">
@@ -401,6 +440,228 @@ export default function MatrixPage() {
         </div>
       )}
 
+      {/* Charts */}
+      {!loading && catStats.length > 0 && (
+        <div className="mt-6">
+          {/* Chart type switcher */}
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-semibold text-muted-foreground">Прогресс по категориям</h2>
+            <div className="flex rounded-xl border border-border/50 overflow-hidden text-xs">
+              {CHART_TYPES.map((ct) => (
+                <button
+                  key={ct.id}
+                  onClick={() => setChartType(ct.id)}
+                  className={`flex items-center gap-1 px-2.5 py-1.5 transition-colors ${
+                    chartType === ct.id ? "bg-primary/10 text-primary font-medium" : "text-muted-foreground hover:bg-accent/50"
+                  }`}
+                >
+                  <ct.icon className="h-3 w-3" />
+                  <span className="hidden sm:inline">{ct.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-border/30 bg-card p-4 md:p-6">
+            {chartType === "radar" && <RadarChart stats={catStats} />}
+            {chartType === "donut" && <DonutChart stats={catStats} />}
+            {chartType === "histogram" && <HistogramChart stats={catStats} />}
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
+}
+
+// ── Radar Chart (SVG) ──
+function RadarChart({ stats }: { stats: CatStat[] }) {
+  const n = stats.length;
+  if (n < 3) return <p className="text-xs text-muted-foreground text-center py-8">Нужно минимум 3 категории</p>;
+
+  const cx = 150, cy = 150, r = 110;
+  const angleStep = (2 * Math.PI) / n;
+
+  function polarToXY(angle: number, radius: number) {
+    return {
+      x: cx + radius * Math.cos(angle - Math.PI / 2),
+      y: cy + radius * Math.sin(angle - Math.PI / 2),
+    };
+  }
+
+  const gridLevels = [0.25, 0.5, 0.75, 1];
+  const dataPoints = stats.map((s, i) => polarToXY(i * angleStep, (s.pct / 100) * r));
+  const polygon = dataPoints.map((p) => `${p.x},${p.y}`).join(" ");
+
+  return (
+    <div className="flex flex-col items-center">
+      <svg viewBox="0 0 300 300" className="w-full max-w-[300px] h-auto">
+        {/* Grid */}
+        {gridLevels.map((lvl) => (
+          <polygon
+            key={lvl}
+            points={stats.map((_, i) => {
+              const p = polarToXY(i * angleStep, lvl * r);
+              return `${p.x},${p.y}`;
+            }).join(" ")}
+            fill="none"
+            stroke="currentColor"
+            strokeOpacity={0.08}
+            strokeWidth={1}
+          />
+        ))}
+        {/* Axes */}
+        {stats.map((_, i) => {
+          const end = polarToXY(i * angleStep, r);
+          return <line key={i} x1={cx} y1={cy} x2={end.x} y2={end.y} stroke="currentColor" strokeOpacity={0.06} />;
+        })}
+        {/* Data polygon */}
+        <polygon points={polygon} fill="oklch(0.65 0.25 270 / 0.15)" stroke="oklch(0.65 0.25 270)" strokeWidth={2} />
+        {/* Data dots */}
+        {dataPoints.map((p, i) => (
+          <circle key={i} cx={p.x} cy={p.y} r={4} fill={stats[i].color} stroke="white" strokeWidth={2} />
+        ))}
+        {/* Labels */}
+        {stats.map((s, i) => {
+          const labelPos = polarToXY(i * angleStep, r + 18);
+          return (
+            <text
+              key={i}
+              x={labelPos.x}
+              y={labelPos.y}
+              textAnchor="middle"
+              dominantBaseline="central"
+              className="fill-current text-muted-foreground"
+              fontSize={10}
+            >
+              {s.name.length > 8 ? s.name.slice(0, 7) + "…" : s.name}
+            </text>
+          );
+        })}
+      </svg>
+      {/* Percent labels */}
+      <div className="flex flex-wrap justify-center gap-3 mt-3">
+        {stats.map((s) => (
+          <div key={s.name} className="flex items-center gap-1.5 text-xs">
+            <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: s.color }} />
+            <span className="text-muted-foreground">{s.name}</span>
+            <span className="font-medium">{s.pct}%</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Donut Chart (SVG) ──
+function DonutChart({ stats }: { stats: CatStat[] }) {
+  const total = stats.reduce((sum, s) => sum + s.done, 0);
+  if (total === 0) return <p className="text-xs text-muted-foreground text-center py-8">Нет данных за период</p>;
+
+  const cx = 100, cy = 100, outerR = 85, innerR = 55;
+  let currentAngle = -Math.PI / 2;
+
+  const slices = stats.filter((s) => s.done > 0).map((s) => {
+    const angle = (s.done / total) * 2 * Math.PI;
+    const startAngle = currentAngle;
+    const endAngle = currentAngle + angle;
+    currentAngle = endAngle;
+
+    const largeArc = angle > Math.PI ? 1 : 0;
+    const x1o = cx + outerR * Math.cos(startAngle);
+    const y1o = cy + outerR * Math.sin(startAngle);
+    const x2o = cx + outerR * Math.cos(endAngle);
+    const y2o = cy + outerR * Math.sin(endAngle);
+    const x1i = cx + innerR * Math.cos(endAngle);
+    const y1i = cy + innerR * Math.sin(endAngle);
+    const x2i = cx + innerR * Math.cos(startAngle);
+    const y2i = cy + innerR * Math.sin(startAngle);
+
+    const d = `M ${x1o} ${y1o} A ${outerR} ${outerR} 0 ${largeArc} 1 ${x2o} ${y2o} L ${x1i} ${y1i} A ${innerR} ${innerR} 0 ${largeArc} 0 ${x2i} ${y2i} Z`;
+
+    return { ...s, d };
+  });
+
+  return (
+    <div className="flex flex-col items-center">
+      <svg viewBox="0 0 200 200" className="w-full max-w-[220px] h-auto">
+        {slices.map((s, i) => (
+          <path key={i} d={s.d} fill={s.color} opacity={0.85} stroke="var(--card)" strokeWidth={2} />
+        ))}
+        {/* Center text */}
+        <text x={cx} y={cy - 6} textAnchor="middle" className="fill-current" fontSize={22} fontWeight="bold">
+          {total}
+        </text>
+        <text x={cx} y={cy + 12} textAnchor="middle" className="fill-current text-muted-foreground" fontSize={10}>
+          выполнено
+        </text>
+      </svg>
+      <div className="flex flex-wrap justify-center gap-3 mt-3">
+        {stats.map((s) => (
+          <div key={s.name} className="flex items-center gap-1.5 text-xs">
+            <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: s.color }} />
+            <span className="text-muted-foreground">{s.name}</span>
+            <span className="font-medium">{s.done}/{s.total}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Histogram Chart (SVG) ──
+function HistogramChart({ stats }: { stats: CatStat[] }) {
+  const maxPct = Math.max(...stats.map((s) => s.pct), 1);
+  const barW = Math.min(40, Math.max(20, 280 / stats.length));
+  const gap = 8;
+  const chartW = stats.length * (barW + gap) - gap;
+  const chartH = 160;
+  const padTop = 20;
+  const padBottom = 40;
+  const svgW = chartW + 20;
+  const svgH = chartH + padTop + padBottom;
+
+  return (
+    <div className="flex flex-col items-center overflow-x-auto w-full">
+      <svg viewBox={`0 0 ${svgW} ${svgH}`} className="w-full max-w-[400px] h-auto" preserveAspectRatio="xMidYMid meet">
+        {/* Grid lines */}
+        {[0, 25, 50, 75, 100].map((v) => {
+          const y = padTop + chartH - (v / 100) * chartH;
+          return (
+            <g key={v}>
+              <line x1={0} y1={y} x2={svgW} y2={y} stroke="currentColor" strokeOpacity={0.06} />
+              <text x={svgW - 2} y={y - 3} textAnchor="end" className="fill-current text-muted-foreground" fontSize={8}>
+                {v}%
+              </text>
+            </g>
+          );
+        })}
+        {/* Bars */}
+        {stats.map((s, i) => {
+          const barH = (s.pct / 100) * chartH;
+          const x = 10 + i * (barW + gap);
+          const y = padTop + chartH - barH;
+          return (
+            <g key={s.name}>
+              <rect x={x} y={y} width={barW} height={barH} rx={4} fill={s.color} opacity={0.8} />
+              {/* Percent on top */}
+              <text x={x + barW / 2} y={y - 4} textAnchor="middle" className="fill-current" fontSize={10} fontWeight="600">
+                {s.pct}%
+              </text>
+              {/* Label below */}
+              <text
+                x={x + barW / 2}
+                y={padTop + chartH + 14}
+                textAnchor="middle"
+                className="fill-current text-muted-foreground"
+                fontSize={9}
+              >
+                {s.name.length > 6 ? s.name.slice(0, 5) + "…" : s.name}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
     </div>
   );
 }

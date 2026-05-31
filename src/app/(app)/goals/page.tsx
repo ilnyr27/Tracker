@@ -10,7 +10,6 @@ import {
   Clock,
   Pause,
   Archive,
-  GripVertical,
   ListTodo,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -471,7 +470,6 @@ function GoalCard({
     >
       {/* Top row */}
       <div className="flex items-center gap-1.5 mb-1.5">
-        <GripVertical className="h-3.5 w-3.5 text-muted-foreground/20 shrink-0" />
         {cat && (
           <div
             className="h-1.5 w-1.5 rounded-full shrink-0"
