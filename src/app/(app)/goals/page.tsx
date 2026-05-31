@@ -30,10 +30,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { motion, AnimatePresence } from "motion/react";
+import { motion } from "motion/react";
 import {
   DndContext,
-  DragOverlay,
   PointerSensor,
   TouchSensor,
   useSensor,
@@ -43,7 +42,6 @@ import {
   pointerWithin,
   rectIntersection,
   type DragEndEvent,
-  type DragStartEvent,
   type CollisionDetection,
 } from "@dnd-kit/core";
 import type { Goal, Category } from "@/lib/supabase/types";
@@ -78,7 +76,6 @@ export default function GoalsPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
   const [filterCategory, setFilterCategory] = useState<string>("all");
-  const [draggedGoal, setDraggedGoal] = useState<Goal | null>(null);
   const [kanbanMode, setKanbanMode] = useState<KanbanMode>("tasks");
 
   // DnD sensors: pointer (mouse) + touch (mobile)
@@ -144,11 +141,6 @@ export default function GoalsPage() {
   }
 
   // ── DnD handlers ──
-  function handleDragStart(event: DragStartEvent) {
-    const goal = goals.find((g) => g.id === event.active.id);
-    if (goal) setDraggedGoal(goal);
-  }
-
   // Custom collision: prefer pointerWithin, fall back to rectIntersection
   const collisionDetection: CollisionDetection = (args) => {
     const pointerCollisions = pointerWithin(args);
@@ -157,7 +149,6 @@ export default function GoalsPage() {
   };
 
   function handleDragEnd(event: DragEndEvent) {
-    setDraggedGoal(null);
     const { active, over } = event;
     if (!over) return;
 
@@ -307,7 +298,6 @@ export default function GoalsPage() {
         <DndContext
           sensors={sensors}
           collisionDetection={collisionDetection}
-          onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}
         >
           <div className="flex-1 overflow-auto">
@@ -322,8 +312,6 @@ export default function GoalsPage() {
                   onMove={moveGoal}
                   onEdit={openEdit}
                   onDelete={deleteGoal}
-                  isDragActive={!!draggedGoal}
-                  draggedGoalColumn={draggedGoal?.status || null}
                 />
               ))}
             </div>
@@ -340,21 +328,12 @@ export default function GoalsPage() {
                       onMove={moveGoal}
                       onEdit={openEdit}
                       onDelete={deleteGoal}
-                      isDragActive={!!draggedGoal}
-                      draggedGoalColumn={draggedGoal?.status || null}
                     />
                   </div>
                 ))}
               </div>
             </div>
           </div>
-
-          {/* Drag overlay — the card that follows cursor */}
-          <DragOverlay dropAnimation={null}>
-            {draggedGoal ? (
-              <DragOverlayCard goal={draggedGoal} catMap={catMap} />
-            ) : null}
-          </DragOverlay>
         </DndContext>
       )}
 
@@ -380,8 +359,6 @@ function DroppableColumn({
   onMove,
   onEdit,
   onDelete,
-  isDragActive,
-  draggedGoalColumn,
 }: {
   column: (typeof COLUMNS)[number];
   goals: Goal[];
@@ -389,24 +366,18 @@ function DroppableColumn({
   onMove: (id: string, status: ColumnId) => void;
   onEdit: (g: Goal) => void;
   onDelete: (id: string) => void;
-  isDragActive: boolean;
-  draggedGoalColumn: ColumnId | null;
 }) {
   const { isOver, setNodeRef } = useDroppable({ id: column.id });
   const Icon = column.icon;
-  const isDropTarget = isDragActive && draggedGoalColumn !== column.id;
 
   return (
     <div
       ref={setNodeRef}
-      className={`flex flex-col min-h-[200px] rounded-2xl transition-all duration-200 ${
+      className={`flex flex-col min-h-[200px] rounded-2xl transition-all duration-200 p-2 ${
         isOver
-          ? "bg-primary/5 ring-2 ring-primary/30 ring-inset"
-          : isDropTarget
-            ? "bg-accent/30 ring-1 ring-border/50 ring-inset ring-dashed"
-            : ""
+          ? "bg-primary/5 ring-2 ring-primary/30"
+          : ""
       }`}
-      style={{ padding: isDropTarget || isOver ? "8px" : undefined }}
     >
       {/* Column header */}
       {(
@@ -470,16 +441,24 @@ function DraggableCard({
   // Prevent drag start on interactive elements
   const stopDrag = (e: React.PointerEvent) => e.stopPropagation();
 
+  const dragStyle: React.CSSProperties | undefined = transform
+    ? {
+        transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
+        zIndex: 50,
+        position: "relative",
+      }
+    : undefined;
+
   return (
     <div
       ref={setNodeRef}
-      style={transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` } : undefined}
+      style={dragStyle}
       {...attributes}
       {...listeners}
-      className={`group rounded-xl border bg-card p-4 transition-all cursor-grab active:cursor-grabbing ${
+      className={`group rounded-xl border bg-card p-4 transition-none cursor-grab active:cursor-grabbing ${
         isDragging
-          ? "opacity-30 scale-95 shadow-none"
-          : "hover:shadow-md"
+          ? "shadow-2xl shadow-primary/20 ring-2 ring-primary/30 rotate-1 scale-105"
+          : "hover:shadow-md transition-shadow"
       } ${
         isCompleted
           ? "border-green-500/20 opacity-80"
@@ -560,38 +539,6 @@ function DraggableCard({
           <Trash2 className="h-3.5 w-3.5" />
         </button>
       </div>
-    </div>
-  );
-}
-
-// ── Drag Overlay (the floating card) ──
-function DragOverlayCard({
-  goal,
-  catMap,
-}: {
-  goal: Goal;
-  catMap: Map<string, Category>;
-}) {
-  const cat = goal.category_id ? catMap.get(goal.category_id) : null;
-
-  return (
-    <div className="rounded-xl border-2 border-primary/40 bg-card p-4 shadow-2xl shadow-primary/10 rotate-2 w-[280px]">
-      <div className="flex items-center gap-2 mb-2">
-        <GripVertical className="h-4 w-4 text-primary/50" />
-        {cat && (
-          <div
-            className="h-2 w-2 rounded-full shrink-0"
-            style={{ backgroundColor: cat.color || "#666" }}
-          />
-        )}
-        {cat && (
-          <span className="text-xs text-muted-foreground truncate">{cat.name}</span>
-        )}
-        <Badge variant="outline" className="text-[10px] px-1.5 py-0 ml-auto shrink-0">
-          {LEVEL_LABELS[goal.level]}
-        </Badge>
-      </div>
-      <h3 className="text-sm font-medium leading-snug">{goal.title}</h3>
     </div>
   );
 }
