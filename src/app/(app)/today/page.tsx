@@ -260,7 +260,14 @@ export default function MainPage() {
                         className="absolute top-10 right-2 z-20 bg-popover border border-border/50 rounded-xl shadow-lg py-1 min-w-[140px]"
                       >
                         <button
-                          onClick={(e) => { e.stopPropagation(); setEditingCatId(cat.id); setEditCatName(cat.name); setCatMenuOpen(null); }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setCatMenuOpen(null);
+                            setEditingCatId(cat.id);
+                            setEditCatName(cat.name);
+                            setGoalDialogCatId(cat.id);
+                            setGoalDialogOpen(true);
+                          }}
                           className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-accent/50 transition-colors"
                         >
                           <Pencil className="h-3.5 w-3.5" /> Переименовать
@@ -302,28 +309,11 @@ export default function MainPage() {
                       </span>
                     </div>
 
-                    {/* Name — inline edit or display */}
-                    <div className="space-y-1 w-full" onClick={(e) => e.stopPropagation()}>
-                      {editingCatId === cat.id ? (
-                        <Input
-                          value={editCatName}
-                          onChange={(e) => setEditCatName(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") saveEditCatName(cat.id);
-                            if (e.key === "Escape") setEditingCatId(null);
-                          }}
-                          onBlur={() => saveEditCatName(cat.id)}
-                          autoFocus
-                          className="h-8 text-sm font-semibold bg-input/50 border-border/50"
-                        />
-                      ) : (
-                        <span
-                          className="text-base font-semibold leading-snug line-clamp-1 block cursor-text"
-                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); setEditingCatId(cat.id); setEditCatName(cat.name); }}
-                        >
-                          {cat.name}
-                        </span>
-                      )}
+                    {/* Name */}
+                    <div className="space-y-1">
+                      <span className="text-base font-semibold leading-snug line-clamp-1 block">
+                        {cat.name}
+                      </span>
                     </div>
 
                     {/* Progress bar */}
@@ -381,6 +371,11 @@ export default function MainPage() {
         goalProgress={goalProgress}
         goalsByCategory={goalsByCategory}
         onDataChanged={loadData}
+        editingCatId={editingCatId}
+        editCatName={editCatName}
+        setEditingCatId={setEditingCatId}
+        setEditCatName={setEditCatName}
+        saveEditCatName={saveEditCatName}
       />
 
       {/* Add category dialog */}
@@ -461,6 +456,11 @@ function CategoryGoalsDialog({
   goalProgress,
   goalsByCategory,
   onDataChanged,
+  editingCatId,
+  editCatName,
+  setEditingCatId,
+  setEditCatName,
+  saveEditCatName,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -470,6 +470,11 @@ function CategoryGoalsDialog({
   goalProgress: Map<string, { done: number; total: number }>;
   goalsByCategory: Map<string, Goal[]>;
   onDataChanged: () => void;
+  editingCatId: string | null;
+  editCatName: string;
+  setEditingCatId: (id: string | null) => void;
+  setEditCatName: (name: string) => void;
+  saveEditCatName: (id: string) => Promise<void>;
 }) {
   const [addMode, setAddMode] = useState(false);
   const [title, setTitle] = useState("");
@@ -580,7 +585,28 @@ function CategoryGoalsDialog({
                 {getEmoji(cat)}
               </div>
             )}
-            <span style={{ color: cat?.color || undefined }}>{cat?.name || "Цели"}</span>
+            {cat && editingCatId === cat.id ? (
+              <Input
+                value={editCatName}
+                onChange={(e) => setEditCatName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") saveEditCatName(cat.id);
+                  if (e.key === "Escape") setEditingCatId(null);
+                }}
+                onBlur={() => saveEditCatName(cat.id)}
+                autoFocus
+                className="h-9 text-lg font-semibold flex-1"
+                style={{ color: cat.color || undefined }}
+              />
+            ) : (
+              <span
+                className="cursor-text"
+                style={{ color: cat?.color || undefined }}
+                onClick={() => { if (cat) { setEditingCatId(cat.id); setEditCatName(cat.name); } }}
+              >
+                {cat?.name || "Цели"}
+              </span>
+            )}
           </DialogTitle>
         </DialogHeader>
 
