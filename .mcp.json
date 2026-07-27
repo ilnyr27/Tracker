@@ -54,6 +54,45 @@
     "Supabase": {
       "type": "http",
       "url": "https://mcp.supabase.com/mcp"
+    },
+    "Puppeteer": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-puppeteer"
+      ]
+    },
+    "E2B": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@e2b/mcp-server"
+      ],
+      "env": {
+        "E2B_API_KEY": ""
+      }
+    },
+    "Linear": {
+      "type": "sse",
+      "url": "https://mcp.linear.app/sse"
+    },
+    "Slack": {
+      "type": "http",
+      "url": "https://mcp.slack.com/mcp"
+    },
+    "Upstash": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@upstash/mcp-server"
+      ],
+      "env": {
+        "UPSTASH_EMAIL": "",
+        "UPSTASH_API_KEY": ""
+      }
     }
   }
 }
