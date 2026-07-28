@@ -67,6 +67,7 @@ export type Task = {
   priority: "low" | "medium" | "high" | "critical" | null;
   sort_order: number;
   completed_at: string | null;
+  completion_note: string | null;
   created_at: string;
   updated_at: string;
 };

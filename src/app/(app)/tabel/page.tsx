@@ -33,6 +33,7 @@ import {
   Radar,
   PieChart,
   BarChart3,
+  NotebookPen,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion } from "motion/react";
@@ -82,6 +83,12 @@ export default function MatrixPage() {
   const [templates, setTemplates] = useState<TaskTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [chartType, setChartType] = useState<ChartType>("radar");
+  const [showNotes, setShowNotes] = useState(() => {
+    if (typeof window !== "undefined") return localStorage.getItem("matrix_show_notes") === "true";
+    return false;
+  });
+  type NotePopover = { taskId: string; note: string; goalTitle: string; dateLabel: string };
+  const [notePopover, setNotePopover] = useState<NotePopover | null>(null);
 
   const rangeStart = fromToday
     ? startOfDay(currentDate)
@@ -184,6 +191,16 @@ export default function MatrixPage() {
     const supabase = createClient();
 
     if (existing) {
+      if (showNotes && existing.is_done) {
+        const goal = goals.find((g) => g.id === goalId);
+        setNotePopover({
+          taskId: existing.id,
+          note: existing.completion_note || "",
+          goalTitle: goal?.title || "",
+          dateLabel: format(parseISO(dateStr), "d MMMM yyyy", { locale: ru }),
+        });
+        return;
+      }
       const newDone = !existing.is_done;
       setTasks((prev) =>
         prev.map((t) =>
@@ -216,6 +233,7 @@ export default function MatrixPage() {
         priority: null,
         sort_order: 0,
         completed_at: new Date().toISOString(),
+        completion_note: null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
@@ -243,6 +261,13 @@ export default function MatrixPage() {
         );
       }
     }
+  }
+
+  async function saveNote(taskId: string, note: string) {
+    const supabase = createClient();
+    const val = note.trim() || null;
+    setTasks((prev) => prev.map((t) => t.id === taskId ? { ...t, completion_note: val } : t));
+    await supabase.from("tasks").update({ completion_note: val }).eq("id", taskId);
   }
 
   function navigateBack() {
@@ -339,6 +364,18 @@ export default function MatrixPage() {
           </Button>
         </div>
         <div className="flex items-center gap-2">
+          {baseMode !== "year" && (
+            <button
+              onClick={() => { const n = !showNotes; setShowNotes(n); localStorage.setItem("matrix_show_notes", String(n)); }}
+              className={`px-2 py-1.5 rounded-lg text-xs border transition-all flex items-center gap-1 ${
+                showNotes ? "bg-blue-500/10 text-blue-500 border-blue-500/30 font-medium" : "text-muted-foreground border-border/50 hover:bg-accent/50"
+              }`}
+              title="Режим записей — нажми на выполненную ячейку чтобы добавить заметку"
+            >
+              <NotebookPen className="h-3 w-3" />
+              Записи
+            </button>
+          )}
           <button
             onClick={() => {
               const next = !fromToday;
@@ -486,12 +523,15 @@ export default function MatrixPage() {
                           ) : (
                             <button
                               onClick={() => toggleCell(goal.id, dateStr)}
-                              className={`inline-flex items-center justify-center transition-all ${
+                              className={`relative inline-flex items-center justify-center transition-all ${
                                 isYearView ? "h-3.5 w-3.5 rounded-sm" : "h-7 w-7 rounded-lg hover:scale-110"
-                              }`}
+                              } ${showNotes && isDone && !isYearView ? "ring-1 ring-blue-400/40" : ""}`}
                               aria-label={`${goal.title} — ${format(day, "d MMM", { locale: ru })}${isDone ? " (выполнено)" : ""}`}
-                              title={format(day, "d MMMM", { locale: ru })}
+                              title={task?.completion_note ? `📋 ${task.completion_note}` : format(day, "d MMMM", { locale: ru })}
                             >
+                              {task?.completion_note && !isYearView && (
+                                <span className="absolute top-0 right-0 h-1.5 w-1.5 rounded-full bg-blue-400 translate-x-0.5 -translate-y-0.5" />
+                              )}
                               {isDone ? (
                                 /* Done — green */
                                 isYearView ? (
@@ -586,6 +626,51 @@ export default function MatrixPage() {
             {chartType === "radar" && <RadarChart stats={catStats} />}
             {chartType === "donut" && <DonutChart stats={catStats} />}
             {chartType === "histogram" && <HistogramChart stats={catStats} />}
+          </div>
+        </div>
+      )}
+
+      {/* Note popover */}
+      {notePopover && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+          onClick={() => { saveNote(notePopover.taskId, notePopover.note); setNotePopover(null); }}
+        >
+          <div
+            className="bg-card border border-border/50 rounded-2xl p-5 w-80 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="text-sm font-semibold mb-0.5 truncate">{notePopover.goalTitle}</div>
+            <div className="text-xs text-muted-foreground mb-3">{notePopover.dateLabel}</div>
+            <textarea
+              autoFocus
+              value={notePopover.note}
+              onChange={(e) => setNotePopover((prev) => prev ? { ...prev, note: e.target.value } : null)}
+              placeholder="Что сделал? Где остановился?..."
+              className="w-full h-24 resize-none text-sm bg-input/50 border border-border/50 rounded-xl p-3 outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/30 transition-all"
+              onKeyDown={(e) => {
+                if (e.key === "Escape") { saveNote(notePopover.taskId, notePopover.note); setNotePopover(null); }
+                if (e.key === "Enter" && e.metaKey) { saveNote(notePopover.taskId, notePopover.note); setNotePopover(null); }
+              }}
+            />
+            <div className="flex gap-2 mt-3">
+              <button
+                onClick={() => { saveNote(notePopover.taskId, notePopover.note); setNotePopover(null); }}
+                className="flex-1 py-2 rounded-xl bg-primary/10 text-primary text-sm font-medium hover:bg-primary/15 transition-colors"
+              >
+                Сохранить
+              </button>
+              {notePopover.note && (
+                <button
+                  onClick={() => { saveNote(notePopover.taskId, ""); setNotePopover(null); }}
+                  className="px-3 py-2 rounded-xl text-red-400/70 text-sm hover:bg-red-500/10 transition-colors"
+                  title="Удалить заметку"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+            <p className="text-[10px] text-muted-foreground/40 text-center mt-2">Esc или ⌘Enter — сохранить</p>
           </div>
         </div>
       )}
