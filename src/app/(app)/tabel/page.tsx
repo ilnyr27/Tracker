@@ -517,24 +517,21 @@ export default function MatrixPage() {
                       return (
                         <td
                           key={dateStr}
-                          className={`${
-                            isExcel
-                              ? `p-0 border-r border-b border-border/20 ${today ? "border-r-primary/30" : ""}`
-                              : `text-center ${isYearView ? "px-0 py-0.5" : "px-0.5 py-1.5"} ${today ? "bg-primary/3" : ""}`
-                          }`}
+                          className={`text-center ${isYearView ? "px-0 py-0.5" : "px-0.5 py-1.5"} ${today && !isExcel ? "bg-primary/3" : ""}`}
+                          style={isExcel ? { verticalAlign: "top" } : undefined}
                         >
                           {beforeGoal ? (
-                            <div className={`${isExcel ? "min-h-7 w-full" : `inline-flex items-center justify-center ${isYearView ? "h-3 w-3" : "h-7 w-7"}`}`} />
+                            <div className={`inline-flex items-center justify-center ${isYearView ? "h-3 w-3" : "h-7 w-7"}`} />
                           ) : isExcel ? (
                             /* ── Excel-style cell ── */
                             <button
                               onClick={() => toggleCell(goal.id, dateStr)}
-                              className={`relative w-full flex flex-col pt-4 pb-1 px-1 transition-colors min-h-7 ${
+                              className={`relative flex flex-col rounded-lg overflow-hidden transition-colors min-h-7 w-7 pt-3.5 pb-0.5 px-0.5 border ${
                                 isDone
-                                  ? "bg-emerald-500/10 hover:bg-emerald-500/15"
+                                  ? "bg-emerald-500/10 border-emerald-500/25 hover:bg-emerald-500/15"
                                   : isPast && scheduled
-                                    ? "bg-red-500/10 hover:bg-red-500/15"
-                                    : "hover:bg-accent/20"
+                                    ? "bg-red-500/10 border-red-400/25 hover:bg-red-500/15"
+                                    : "border-border/30 hover:bg-accent/20"
                               }`}
                               title={task?.completion_note || format(day, "d MMMM", { locale: ru })}
                             >
@@ -546,9 +543,9 @@ export default function MatrixPage() {
                                   <X className="h-2.5 w-2.5 text-red-400" strokeWidth={2.5} />
                                 ) : null}
                               </span>
-                              {/* Note text — wraps naturally within column width */}
+                              {/* Note text — wraps downward within fixed cell width */}
                               {isDone && task?.completion_note && (
-                                <span className="text-[9px] leading-tight text-left break-words whitespace-normal text-emerald-700 dark:text-emerald-300/80">
+                                <span className="text-[8px] leading-tight text-left break-all text-emerald-700 dark:text-emerald-300/80 w-full">
                                   {task.completion_note}
                                 </span>
                               )}
