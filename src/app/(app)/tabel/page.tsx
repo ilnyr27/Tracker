@@ -526,16 +526,16 @@ export default function MatrixPage() {
                             /* ── Excel-style cell ── */
                             <button
                               onClick={() => toggleCell(goal.id, dateStr)}
-                              className={`relative flex flex-col rounded-lg overflow-hidden transition-colors min-h-7 w-7 pt-3.5 pb-0.5 px-0.5 border ${
+                              style={{ width: "80px" }}
+                              className={`relative flex flex-col rounded-lg overflow-hidden transition-colors min-h-16 pt-4 pb-1 px-1.5 ${
                                 isDone
-                                  ? "bg-emerald-500/10 border-emerald-500/25 hover:bg-emerald-500/15"
+                                  ? "bg-emerald-500/10 hover:bg-emerald-500/15"
                                   : isPast && scheduled
-                                    ? "bg-red-500/10 border-red-400/25 hover:bg-red-500/15"
-                                    : "border-border/30 hover:bg-accent/20"
+                                    ? "bg-red-500/10 hover:bg-red-500/15"
+                                    : "hover:bg-accent/20"
                               }`}
                               title={task?.completion_note || format(day, "d MMMM", { locale: ru })}
                             >
-                              {/* Status icon — top right */}
                               <span className="absolute top-0.5 right-0.5">
                                 {isDone ? (
                                   <Check className="h-3 w-3 text-emerald-500" strokeWidth={3} />
@@ -543,9 +543,8 @@ export default function MatrixPage() {
                                   <X className="h-2.5 w-2.5 text-red-400" strokeWidth={2.5} />
                                 ) : null}
                               </span>
-                              {/* Note text — wraps downward within fixed cell width */}
                               {isDone && task?.completion_note && (
-                                <span className="text-[8px] leading-tight text-left break-all text-emerald-700 dark:text-emerald-300/80 w-full">
+                                <span className="text-[9px] leading-tight text-left break-words whitespace-pre-wrap text-emerald-700 dark:text-emerald-300/80 w-full">
                                   {task.completion_note}
                                 </span>
                               )}
