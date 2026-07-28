@@ -526,7 +526,7 @@ export default function MatrixPage() {
                             /* ── Excel-style cell ── */
                             <button
                               onClick={() => toggleCell(goal.id, dateStr)}
-                              style={{ width: "80px" }}
+                              style={{ width: "120px" }}
                               className={`relative flex flex-col rounded-lg overflow-hidden transition-colors min-h-16 pt-4 pb-1 px-1.5 ${
                                 isDone
                                   ? "bg-emerald-500/10 hover:bg-emerald-500/15"
