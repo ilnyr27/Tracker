@@ -513,25 +513,63 @@ export default function MatrixPage() {
                       const scheduled = isScheduledDay(goal.id, day);
 
                       const isYearView = baseMode === "year";
+                      const isExcel = showNotes && !isYearView;
                       return (
                         <td
                           key={dateStr}
-                          className={`text-center ${isYearView ? "px-0 py-0.5" : "px-0.5 py-1.5"} ${today ? "bg-primary/3" : ""}`}
+                          className={`${
+                            isExcel
+                              ? `p-0 border-r border-b border-border/20 ${today ? "border-r-primary/30" : ""}`
+                              : `text-center ${isYearView ? "px-0 py-0.5" : "px-0.5 py-1.5"} ${today ? "bg-primary/3" : ""}`
+                          }`}
                         >
                           {beforeGoal ? (
-                            <div className={`inline-flex items-center justify-center ${isYearView ? "h-3 w-3" : "h-7 w-7"}`} />
+                            <div className={`${isExcel ? (baseMode === "week" ? "h-16 min-w-[80px]" : "h-12 min-w-[36px]") : `inline-flex items-center justify-center ${isYearView ? "h-3 w-3" : "h-7 w-7"}`}`} />
+                          ) : isExcel ? (
+                            /* ── Excel-style cell ── */
+                            <button
+                              onClick={() => toggleCell(goal.id, dateStr)}
+                              className={`relative w-full flex flex-col p-1 transition-colors ${
+                                baseMode === "week" ? "h-16 min-w-[80px]" : "h-12 min-w-[36px]"
+                              } ${
+                                isDone
+                                  ? "bg-emerald-500/10 hover:bg-emerald-500/15"
+                                  : isPast && scheduled
+                                    ? "bg-red-500/10 hover:bg-red-500/15"
+                                    : "hover:bg-accent/20"
+                              }`}
+                              title={task?.completion_note || format(day, "d MMMM", { locale: ru })}
+                            >
+                              {/* Status icon — top right */}
+                              <span className="absolute top-0.5 right-0.5">
+                                {isDone ? (
+                                  <Check className="h-3 w-3 text-emerald-500" strokeWidth={3} />
+                                ) : isPast && scheduled ? (
+                                  <X className="h-2.5 w-2.5 text-red-400" strokeWidth={2.5} />
+                                ) : null}
+                              </span>
+                              {/* Note text */}
+                              {isDone && baseMode === "week" && (
+                                <span className={`text-[9px] leading-tight text-left mt-3 line-clamp-3 break-words ${
+                                  task?.completion_note
+                                    ? "text-emerald-700 dark:text-emerald-300/80"
+                                    : "text-muted-foreground/20"
+                                }`}>
+                                  {task?.completion_note ?? "·"}
+                                </span>
+                              )}
+                            </button>
                           ) : (
-                            <div className={`flex flex-col items-center ${showNotes && !isYearView ? "gap-0.5" : ""}`}>
+                            /* ── Compact cell (original) ── */
                             <button
                               onClick={() => toggleCell(goal.id, dateStr)}
                               className={`relative inline-flex items-center justify-center transition-all ${
                                 isYearView ? "h-3.5 w-3.5 rounded-sm" : "h-7 w-7 rounded-lg hover:scale-110"
-                              } ${showNotes && isDone && !isYearView ? "ring-1 ring-blue-400/40" : ""}`}
+                              }`}
                               aria-label={`${goal.title} — ${format(day, "d MMM", { locale: ru })}${isDone ? " (выполнено)" : ""}`}
-                              title={task?.completion_note ? `📋 ${task.completion_note}` : format(day, "d MMMM", { locale: ru })}
+                              title={format(day, "d MMMM", { locale: ru })}
                             >
                               {isDone ? (
-                                /* Done — green */
                                 isYearView ? (
                                   <div className="h-2.5 w-2.5 rounded-sm bg-emerald-500" />
                                 ) : (
@@ -540,7 +578,6 @@ export default function MatrixPage() {
                                   </div>
                                 )
                               ) : isPast && scheduled ? (
-                                /* Missed scheduled day — red */
                                 isYearView ? (
                                   <div className="h-2.5 w-2.5 rounded-sm bg-red-400/40" />
                                 ) : (
@@ -549,14 +586,12 @@ export default function MatrixPage() {
                                   </div>
                                 )
                               ) : !scheduled ? (
-                                /* Not scheduled — very faint, dashed border (clickable for transfers) */
                                 isYearView ? (
                                   <div className="h-2.5 w-2.5 rounded-sm border border-dashed border-border/15" />
                                 ) : (
                                   <div className="h-5 w-5 rounded-md border border-dashed border-border/20 bg-muted/10" />
                                 )
                               ) : (
-                                /* Scheduled future — normal gray */
                                 isYearView ? (
                                   <div className="h-2.5 w-2.5 rounded-sm border border-border/40 bg-muted/20" />
                                 ) : (
@@ -564,19 +599,6 @@ export default function MatrixPage() {
                                 )
                               )}
                             </button>
-                            {showNotes && isDone && !isYearView && (
-                              <span
-                                className="text-[8px] leading-tight text-center cursor-pointer"
-                                style={{ maxWidth: baseMode === "week" ? "52px" : "28px" }}
-                                onClick={() => toggleCell(goal.id, dateStr)}
-                              >
-                                {task?.completion_note
-                                  ? <span className="text-blue-400 block truncate">{task.completion_note}</span>
-                                  : <span className="text-muted-foreground/30">+</span>
-                                }
-                              </span>
-                            )}
-                            </div>
                           )}
                         </td>
                       );
