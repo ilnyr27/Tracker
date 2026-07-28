@@ -517,7 +517,7 @@ export default function MatrixPage() {
                       return (
                         <td
                           key={dateStr}
-                          className={`text-center ${isYearView ? "px-0 py-0.5" : "px-0.5 py-1.5"} ${today && !isExcel ? "bg-primary/3" : ""}`}
+                          className={`text-center ${isYearView ? "px-0 py-0.5" : isExcel ? "px-0.5 py-0.5" : "px-0.5 py-1.5"} ${today && !isExcel ? "bg-primary/3" : ""}`}
                           style={isExcel ? { verticalAlign: "top" } : undefined}
                         >
                           {beforeGoal ? (
