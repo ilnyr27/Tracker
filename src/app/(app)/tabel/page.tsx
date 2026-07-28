@@ -521,6 +521,7 @@ export default function MatrixPage() {
                           {beforeGoal ? (
                             <div className={`inline-flex items-center justify-center ${isYearView ? "h-3 w-3" : "h-7 w-7"}`} />
                           ) : (
+                            <div className={`flex flex-col items-center ${showNotes && !isYearView ? "gap-0.5" : ""}`}>
                             <button
                               onClick={() => toggleCell(goal.id, dateStr)}
                               className={`relative inline-flex items-center justify-center transition-all ${
@@ -529,9 +530,6 @@ export default function MatrixPage() {
                               aria-label={`${goal.title} — ${format(day, "d MMM", { locale: ru })}${isDone ? " (выполнено)" : ""}`}
                               title={task?.completion_note ? `📋 ${task.completion_note}` : format(day, "d MMMM", { locale: ru })}
                             >
-                              {task?.completion_note && !isYearView && (
-                                <span className="absolute top-0 right-0 h-1.5 w-1.5 rounded-full bg-blue-400 translate-x-0.5 -translate-y-0.5" />
-                              )}
                               {isDone ? (
                                 /* Done — green */
                                 isYearView ? (
@@ -566,6 +564,19 @@ export default function MatrixPage() {
                                 )
                               )}
                             </button>
+                            {showNotes && isDone && !isYearView && (
+                              <span
+                                className="text-[8px] leading-tight text-center cursor-pointer"
+                                style={{ maxWidth: baseMode === "week" ? "52px" : "28px" }}
+                                onClick={() => toggleCell(goal.id, dateStr)}
+                              >
+                                {task?.completion_note
+                                  ? <span className="text-blue-400 block truncate">{task.completion_note}</span>
+                                  : <span className="text-muted-foreground/30">+</span>
+                                }
+                              </span>
+                            )}
+                            </div>
                           )}
                         </td>
                       );
