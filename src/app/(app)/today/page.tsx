@@ -1945,16 +1945,6 @@ function EditGoalDialog({
               className="h-12 bg-input/50 border-border/50 text-base"
             />
 
-            <div>
-              <label className="text-xs text-muted-foreground mb-1.5 block">Время уведомления</label>
-              <Input
-                type="time"
-                value={reminderTime}
-                onChange={(e) => setReminderTime(e.target.value)}
-                className="h-11 bg-input/50 border-border/50"
-              />
-            </div>
-
             {isHabit && template && (
               <p className="text-xs text-muted-foreground/60">
                 Текущее: {getRecurrenceLabel(template)}
@@ -2179,6 +2169,34 @@ function EditGoalDialog({
                 </div>
               </div>
             )}
+
+            <div>
+              <label className="text-xs text-muted-foreground mb-1.5 flex items-center gap-1.5">
+                <Bell className="h-3 w-3" /> Напоминание
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="time"
+                  value={reminderTime}
+                  onChange={(e) => setReminderTime(e.target.value)}
+                  className="flex-1 h-11 rounded-xl border border-border/50 bg-input/50 px-3 text-sm outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/20"
+                />
+                {reminderTime && (
+                  <button
+                    type="button"
+                    onClick={() => setReminderTime("")}
+                    className="p-2 rounded-lg text-muted-foreground/40 hover:text-muted-foreground hover:bg-accent/50 transition-colors"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+              {reminderTime && (
+                <p className="text-[10px] text-muted-foreground/50 mt-1">
+                  Уведомление придёт в {reminderTime}
+                </p>
+              )}
+            </div>
 
             <div className="flex gap-3 pt-2">
               <Button type="button" variant="ghost" className="flex-1 h-11" onClick={() => onOpenChange(false)}>

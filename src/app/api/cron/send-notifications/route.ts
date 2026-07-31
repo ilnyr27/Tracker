@@ -19,11 +19,15 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const now = new Date();
-  const todayStr = now.toISOString().slice(0, 10);
-  // Current time HH:MM
-  const hh = String(now.getHours()).padStart(2, "0");
-  const mm = String(now.getMinutes()).padStart(2, "0");
+  const nowUtc = new Date();
+  // Apply timezone offset (default UTC+3 Moscow)
+  const tzOffset = parseInt(process.env.TZ_OFFSET || "3");
+  const localMs = nowUtc.getTime() + tzOffset * 60 * 60 * 1000;
+  const local = new Date(localMs);
+  const todayStr = local.toISOString().slice(0, 10);
+  // Current local time HH:MM
+  const hh = String(local.getUTCHours()).padStart(2, "0");
+  const mm = String(local.getUTCMinutes()).padStart(2, "0");
   const currentTime = `${hh}:${mm}`;
 
   // task_templates with reminder_time matching now (HH:MM)
