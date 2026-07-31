@@ -10,6 +10,7 @@ import {
   Clock,
   Archive,
   ListTodo,
+  Pencil,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -59,6 +60,9 @@ export default function GoalsPage() {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
+  const [defaultStatus, setDefaultStatus] = useState<ColumnId>("deferred");
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
   const [filterCategory, setFilterCategory] = useState<string>("all");
   const [kanbanMode, setKanbanMode] = useState<KanbanMode>("tasks");
   const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -109,7 +113,22 @@ export default function GoalsPage() {
 
   function openCreate() {
     setEditingGoal(null);
+    setDefaultStatus("deferred");
     setDialogOpen(true);
+  }
+
+  function openCreateInColumn(status: ColumnId) {
+    setEditingGoal(null);
+    setDefaultStatus(status);
+    setDialogOpen(true);
+  }
+
+  async function saveRename(id: string, title: string) {
+    if (!title.trim()) { setRenamingId(null); return; }
+    setGoals((prev) => prev.map((g) => g.id === id ? { ...g, title: title.trim() } : g));
+    setRenamingId(null);
+    const supabase = createClient();
+    await supabase.from("goals").update({ title: title.trim() }).eq("id", id);
   }
 
   function openEdit(goal: Goal) {
@@ -195,23 +214,13 @@ export default function GoalsPage() {
       {/* Header */}
       <div className="px-4 py-4 md:px-6 border-b border-border/50 bg-background/80 backdrop-blur-sm">
         <div className="max-w-7xl mx-auto">
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <h1 className="text-xl font-bold gradient-text tracking-tight">Канбан</h1>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {totalGoals > 0
-                  ? `${completedGoals} из ${totalGoals} выполнено`
-                  : kanbanMode === "tasks" ? "Создавай задачи и двигай по колонкам" : "Цели из категорий на главном экране"}
-              </p>
-            </div>
-            <Button
-              size="sm"
-              className="gradient-primary text-white border-0 hover:opacity-90 rounded-xl"
-              onClick={openCreate}
-            >
-              <Plus className="h-4 w-4 mr-1.5" />
-              {kanbanMode === "tasks" ? "Задача" : "Цель"}
-            </Button>
+          <div className="mb-3">
+            <h1 className="text-xl font-bold gradient-text tracking-tight">Канбан</h1>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {totalGoals > 0
+                ? `${completedGoals} из ${totalGoals} выполнено`
+                : kanbanMode === "tasks" ? "Создавай задачи и двигай по колонкам" : "Цели из категорий на главном экране"}
+            </p>
           </div>
 
           {/* Mode toggle */}
@@ -298,6 +307,13 @@ export default function GoalsPage() {
                 onMove={moveGoal}
                 onEdit={openEdit}
                 onDelete={deleteGoal}
+                onAdd={openCreateInColumn}
+                renamingId={renamingId}
+                renameValue={renameValue}
+                onRenameStart={(g) => { setRenamingId(g.id); setRenameValue(g.title); }}
+                onRenameChange={setRenameValue}
+                onRenameSave={saveRename}
+                onRenameCancel={() => setRenamingId(null)}
                 isOver={overColumn === col.id}
                 isDragging={!!draggingId}
                 onDragStart={handleDragStart}
@@ -313,7 +329,7 @@ export default function GoalsPage() {
           <div className="md:hidden overflow-x-auto pb-28">
             <div className="flex gap-3 p-4 min-w-max">
               {[...COLUMNS].sort((a) => a.id === "active" ? -1 : 0).map((col) => (
-                <div key={col.id} className="w-[75vw] shrink-0">
+                <div key={col.id} className="w-[62vw] shrink-0">
                   <KanbanColumn
                     column={col}
                     goals={goalsByColumn[col.id]}
@@ -321,6 +337,13 @@ export default function GoalsPage() {
                     onMove={moveGoal}
                     onEdit={openEdit}
                     onDelete={deleteGoal}
+                    onAdd={openCreateInColumn}
+                    renamingId={renamingId}
+                    renameValue={renameValue}
+                    onRenameStart={(g) => { setRenamingId(g.id); setRenameValue(g.title); }}
+                    onRenameChange={setRenameValue}
+                    onRenameSave={saveRename}
+                    onRenameCancel={() => setRenamingId(null)}
                     isOver={overColumn === col.id}
                     isDragging={!!draggingId}
                     onDragStart={handleDragStart}
@@ -345,6 +368,7 @@ export default function GoalsPage() {
         allGoals={goals}
         onSaved={loadData}
         kanbanMode={kanbanMode}
+        defaultStatus={defaultStatus}
       />
     </div>
   );
@@ -358,6 +382,13 @@ function KanbanColumn({
   onMove,
   onEdit,
   onDelete,
+  onAdd,
+  renamingId,
+  renameValue,
+  onRenameStart,
+  onRenameChange,
+  onRenameSave,
+  onRenameCancel,
   isOver,
   isDragging,
   onDragStart,
@@ -372,6 +403,13 @@ function KanbanColumn({
   onMove: (id: string, status: ColumnId) => void;
   onEdit: (g: Goal) => void;
   onDelete: (id: string) => void;
+  onAdd?: (status: ColumnId) => void;
+  renamingId?: string | null;
+  renameValue?: string;
+  onRenameStart?: (g: Goal) => void;
+  onRenameChange?: (v: string) => void;
+  onRenameSave?: (id: string, title: string) => void;
+  onRenameCancel?: () => void;
   isOver: boolean;
   isDragging: boolean;
   onDragStart: (e: React.DragEvent, goalId: string) => void;
@@ -421,10 +459,27 @@ function KanbanColumn({
               onDelete={onDelete}
               onDragStart={onDragStart}
               onDragEnd={onDragEnd}
+              renamingId={renamingId}
+              renameValue={renameValue}
+              onRenameStart={onRenameStart}
+              onRenameChange={onRenameChange}
+              onRenameSave={onRenameSave}
+              onRenameCancel={onRenameCancel}
             />
           ))
         )}
       </div>
+
+      {/* Add button at bottom */}
+      {onAdd && column.id !== "cancelled" && (
+        <button
+          onClick={() => onAdd(column.id)}
+          className="mt-2 flex items-center gap-1.5 px-2 py-1.5 w-full rounded-xl text-[11px] text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-colors"
+        >
+          <Plus className="h-3 w-3" />
+          Добавить
+        </button>
+      )}
     </div>
   );
 }
@@ -439,6 +494,12 @@ function GoalCard({
   onDelete,
   onDragStart,
   onDragEnd,
+  renamingId,
+  renameValue,
+  onRenameStart,
+  onRenameChange,
+  onRenameSave,
+  onRenameCancel,
 }: {
   goal: Goal;
   catMap: Map<string, Category>;
@@ -448,16 +509,23 @@ function GoalCard({
   onDelete: (id: string) => void;
   onDragStart: (e: React.DragEvent, goalId: string) => void;
   onDragEnd: (e: React.DragEvent) => void;
+  renamingId?: string | null;
+  renameValue?: string;
+  onRenameStart?: (g: Goal) => void;
+  onRenameChange?: (v: string) => void;
+  onRenameSave?: (id: string, title: string) => void;
+  onRenameCancel?: () => void;
 }) {
   const cat = goal.category_id ? catMap.get(goal.category_id) : null;
   const isCompleted = goal.status === "completed";
   const isArchived = goal.status === "cancelled";
+  const isRenaming = renamingId === goal.id;
   const moveTargets = COLUMNS.filter((c) => c.id !== currentColumn);
 
   return (
     <div
-      draggable
-      onDragStart={(e) => onDragStart(e, goal.id)}
+      draggable={!isRenaming}
+      onDragStart={(e) => !isRenaming && onDragStart(e, goal.id)}
       onDragEnd={onDragEnd}
       className={`group rounded-xl border bg-card p-3 cursor-grab active:cursor-grabbing transition-shadow hover:shadow-md ${
         isCompleted
@@ -485,15 +553,40 @@ function GoalCard({
         </Badge>
       </div>
 
-      {/* Title */}
-      <h3
-        className={`text-[13px] font-medium leading-snug mb-1 cursor-pointer hover:text-primary transition-colors ${
-          isCompleted ? "line-through text-muted-foreground/60" : ""
-        }`}
-        onClick={() => onEdit(goal)}
-      >
-        {goal.title}
-      </h3>
+      {/* Title — inline rename or static */}
+      {isRenaming ? (
+        <input
+          autoFocus
+          value={renameValue ?? ""}
+          onChange={(e) => onRenameChange?.(e.target.value)}
+          onBlur={() => onRenameSave?.(goal.id, renameValue ?? "")}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") onRenameSave?.(goal.id, renameValue ?? "");
+            if (e.key === "Escape") onRenameCancel?.();
+          }}
+          className="text-[13px] font-medium w-full bg-input/50 border border-border/50 rounded-lg px-2 py-1 mb-1 outline-none focus:ring-1 focus:ring-primary/50"
+          onClick={(e) => e.stopPropagation()}
+        />
+      ) : (
+        <div className="flex items-start gap-1 mb-1">
+          <h3
+            className={`flex-1 text-[13px] font-medium leading-snug cursor-pointer hover:text-primary transition-colors ${
+              isCompleted ? "line-through text-muted-foreground/60" : ""
+            }`}
+            onClick={() => onEdit(goal)}
+          >
+            {goal.title}
+          </h3>
+          {onRenameStart && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onRenameStart(goal); }}
+              className="opacity-0 group-hover:opacity-100 p-0.5 rounded transition-opacity text-muted-foreground/40 hover:text-muted-foreground shrink-0 mt-0.5"
+            >
+              <Pencil className="h-2.5 w-2.5" />
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Description */}
       {goal.description && (
@@ -548,6 +641,7 @@ function GoalDialog({
   allGoals,
   onSaved,
   kanbanMode,
+  defaultStatus,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -556,6 +650,7 @@ function GoalDialog({
   allGoals: Goal[];
   onSaved: () => void;
   kanbanMode: KanbanMode;
+  defaultStatus?: ColumnId;
 }) {
   const isEdit = !!goal;
 
@@ -588,7 +683,7 @@ function GoalDialog({
         setParentGoalId("none");
         setTargetDate("");
         setReminderTime("");
-        setStatus("deferred");
+        setStatus(defaultStatus ?? "deferred");
       }
     }
   }, [open, goal]);
