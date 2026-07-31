@@ -6,6 +6,7 @@ import { BottomNav } from "@/components/layout/bottom-nav";
 import { QuickAddSheet } from "@/components/layout/quick-add-sheet";
 import { Onboarding } from "@/components/layout/onboarding";
 import { startNotificationPolling, stopNotificationPolling } from "@/lib/notification-scheduler";
+import { PushPrompt } from "@/components/layout/push-prompt";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [fabOpen, setFabOpen] = useState(false);
@@ -42,6 +43,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <BottomNav onFabClick={() => setFabOpen(true)} />
       <QuickAddSheet open={fabOpen} onOpenChange={setFabOpen} />
       <Onboarding />
+      <PushPrompt />
     </div>
   );
 }
