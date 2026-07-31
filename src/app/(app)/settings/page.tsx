@@ -14,12 +14,17 @@ import {
   getNotificationPermission,
   requestNotificationPermission,
   registerServiceWorker,
+  subscribeToWebPush,
+  unsubscribeFromWebPush,
+  isPushSubscribed,
 } from "@/lib/notifications";
 
 export default function SettingsPage() {
   const router = useRouter();
   const [notifPermission, setNotifPermission] = useState<string>("default");
   const [notifSupported, setNotifSupported] = useState(false);
+  const [pushSubscribed, setPushSubscribed] = useState(false);
+  const [pushLoading, setPushLoading] = useState(false);
 
   // Granular notification preferences (stored in localStorage)
   const [notifPrefs, setNotifPrefs] = useState({
@@ -34,7 +39,10 @@ export default function SettingsPage() {
     setNotifSupported(supported);
     if (supported) {
       setNotifPermission(getNotificationPermission());
-      registerServiceWorker();
+      registerServiceWorker().then(async () => {
+        const subscribed = await isPushSubscribed();
+        setPushSubscribed(subscribed);
+      });
     }
     // Load saved preferences
     try {
@@ -54,7 +62,23 @@ export default function SettingsPage() {
     setNotifPermission(result);
     if (result === "granted") {
       await registerServiceWorker();
+      setPushLoading(true);
+      const ok = await subscribeToWebPush();
+      setPushSubscribed(ok);
+      setPushLoading(false);
     }
+  }
+
+  async function handleTogglePush() {
+    setPushLoading(true);
+    if (pushSubscribed) {
+      await unsubscribeFromWebPush();
+      setPushSubscribed(false);
+    } else {
+      const ok = await subscribeToWebPush();
+      setPushSubscribed(ok);
+    }
+    setPushLoading(false);
   }
 
   async function handleLogout() {
@@ -110,6 +134,22 @@ export default function SettingsPage() {
                   <p className="text-sm font-medium text-emerald-600 dark:text-emerald-400">Уведомления включены</p>
                   <p className="text-xs text-muted-foreground">Настрой, какие уведомления получать</p>
                 </div>
+              </div>
+              {/* Web Push toggle */}
+              <div className="flex items-center justify-between py-1">
+                <div>
+                  <span className="text-sm">Серверные push-уведомления</span>
+                  <p className="text-xs text-muted-foreground/60">Приходят даже когда приложение закрыто</p>
+                </div>
+                <button
+                  onClick={handleTogglePush}
+                  disabled={pushLoading}
+                  className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors disabled:opacity-50 ${
+                    pushSubscribed ? "bg-primary" : "bg-muted"
+                  }`}
+                >
+                  <span className={`inline-block h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${pushSubscribed ? "translate-x-5" : "translate-x-0"}`} />
+                </button>
               </div>
               <div className="space-y-2 pl-1">
                 {([
