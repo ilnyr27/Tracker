@@ -534,8 +534,8 @@ export default function MatrixPage() {
                             /* ── Excel-style cell ── */
                             <button
                               onClick={() => toggleCell(goal.id, dateStr)}
-                              style={{ width: "120px" }}
-                              className={`relative flex flex-col rounded-lg overflow-hidden transition-colors min-h-16 pt-4 pb-1 px-1.5 ${
+                              style={{ width: baseMode === "week" ? "52px" : "36px" }}
+                              className={`relative flex flex-col rounded-lg overflow-hidden transition-colors min-h-12 pt-4 pb-1 px-1 ${
                                 isDone
                                   ? "bg-emerald-500/10 hover:bg-emerald-500/15"
                                   : isPast && scheduled
@@ -551,8 +551,8 @@ export default function MatrixPage() {
                                   <X className="h-2.5 w-2.5 text-red-400" strokeWidth={2.5} />
                                 ) : null}
                               </span>
-                              {isDone && task?.completion_note && (
-                                <span className="text-[9px] leading-tight text-left break-words whitespace-pre-wrap text-emerald-700 dark:text-emerald-300/80 w-full">
+                              {task?.completion_note && (
+                                <span className={`text-[7px] leading-tight text-left line-clamp-2 break-words w-full ${isDone ? "text-emerald-700 dark:text-emerald-300/80" : "text-red-400/70"}`}>
                                   {task.completion_note}
                                 </span>
                               )}
