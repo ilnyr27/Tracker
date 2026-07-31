@@ -12,11 +12,12 @@ const PUBLIC_FILES = [
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Skip auth for static/public files
+  // Skip auth for static/public files and cron routes
   if (
     PUBLIC_FILES.includes(pathname) ||
     pathname.startsWith("/icons/") ||
     pathname.startsWith("/_next/") ||
+    pathname.startsWith("/api/cron/") ||
     /\.(?:svg|png|jpg|jpeg|gif|webp|ico)$/.test(pathname)
   ) {
     return NextResponse.next();
