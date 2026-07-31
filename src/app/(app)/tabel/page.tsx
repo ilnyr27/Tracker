@@ -359,7 +359,8 @@ export default function MatrixPage() {
       </div>
 
       {/* Controls */}
-      <div className="flex items-center justify-between mt-3 mb-4">
+      <div className="flex flex-wrap items-center gap-2 mt-3 mb-4">
+        {/* Nav arrows */}
         <div className="flex items-center gap-1">
           <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl" onClick={navigateBack} aria-label="Назад">
             <ChevronLeft className="h-4 w-4" />
@@ -371,55 +372,58 @@ export default function MatrixPage() {
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
-        <div className="flex items-center gap-2">
-          {baseMode !== "year" && (
+
+        {/* Period tabs */}
+        <div className="flex rounded-xl border border-border/50 overflow-hidden text-xs" role="tablist" aria-label="Период отображения">
+          {([
+            { id: "week" as BaseMode, label: "Неделя" },
+            { id: "month" as BaseMode, label: "Месяц" },
+            { id: "year" as BaseMode, label: "Год" },
+          ] as const).map((tab) => (
             <button
-              onClick={() => { const n = !showNotes; setShowNotes(n); localStorage.setItem("matrix_show_notes", String(n)); }}
-              className={`px-2 py-1.5 rounded-lg text-xs border transition-all flex items-center gap-1 ${
-                showNotes ? "bg-blue-500/10 text-blue-500 border-blue-500/30 font-medium" : "text-muted-foreground border-border/50 hover:bg-accent/50"
+              key={tab.id}
+              role="tab"
+              aria-selected={baseMode === tab.id}
+              onClick={() => {
+                setBaseMode(tab.id);
+                localStorage.setItem("matrix_base_mode", tab.id);
+              }}
+              className={`px-2.5 py-1.5 transition-colors ${
+                baseMode === tab.id ? "bg-primary/10 text-primary font-medium" : "text-muted-foreground hover:bg-accent/50"
               }`}
-              title="Режим записей — нажми на выполненную ячейку чтобы добавить заметку"
             >
-              <NotebookPen className="h-3 w-3" />
-              Записи
+              {tab.label}
             </button>
-          )}
+          ))}
+        </div>
+
+        {/* Записи */}
+        {baseMode !== "year" && (
           <button
-            onClick={() => {
-              const next = !fromToday;
-              setFromToday(next);
-              localStorage.setItem("matrix_from_today", String(next));
-              if (next) setCurrentDate(new Date());
-            }}
-            className={`px-2 py-1.5 rounded-lg text-xs border transition-all ${
-              fromToday ? "bg-primary/10 text-primary border-primary/30 font-medium" : "text-muted-foreground border-border/50 hover:bg-accent/50"
+            onClick={() => { const n = !showNotes; setShowNotes(n); localStorage.setItem("matrix_show_notes", String(n)); }}
+            className={`px-2 py-1.5 rounded-lg text-xs border transition-all flex items-center gap-1 ${
+              showNotes ? "bg-blue-500/10 text-blue-500 border-blue-500/30 font-medium" : "text-muted-foreground border-border/50 hover:bg-accent/50"
             }`}
           >
-            Сегодня→
+            <NotebookPen className="h-3 w-3" />
+            Записи
           </button>
-          <div className="flex rounded-xl border border-border/50 overflow-hidden text-xs" role="tablist" aria-label="Период отображения">
-            {([
-              { id: "week" as BaseMode, label: "Неделя" },
-              { id: "month" as BaseMode, label: "Месяц" },
-              { id: "year" as BaseMode, label: "Год" },
-            ] as const).map((tab) => (
-              <button
-                key={tab.id}
-                role="tab"
-                aria-selected={baseMode === tab.id}
-                onClick={() => {
-                  setBaseMode(tab.id);
-                  localStorage.setItem("matrix_base_mode", tab.id);
-                }}
-                className={`px-2.5 py-1.5 transition-colors ${
-                  baseMode === tab.id ? "bg-primary/10 text-primary font-medium" : "text-muted-foreground hover:bg-accent/50"
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-        </div>
+        )}
+
+        {/* От сегодня */}
+        <button
+          onClick={() => {
+            const next = !fromToday;
+            setFromToday(next);
+            localStorage.setItem("matrix_from_today", String(next));
+            if (next) setCurrentDate(new Date());
+          }}
+          className={`px-2 py-1.5 rounded-lg text-xs border transition-all ${
+            fromToday ? "bg-primary/10 text-primary border-primary/30 font-medium" : "text-muted-foreground border-border/50 hover:bg-accent/50"
+          }`}
+        >
+          Сегодня→
+        </button>
       </div>
 
       {/* Matrix grid */}
@@ -525,7 +529,7 @@ export default function MatrixPage() {
                       return (
                         <td
                           key={dateStr}
-                          className={`text-center ${isYearView ? "px-0 py-0.5" : isExcel ? "px-0 py-0" : "px-0.5 py-1.5"} ${today && !isExcel ? "bg-primary/3" : ""}`}
+                          className={`text-center ${isYearView ? "px-0 py-0.5" : isExcel ? "px-px py-px" : "px-0.5 py-1.5"} ${today && !isExcel ? "bg-primary/3" : ""}`}
                           style={isExcel ? { verticalAlign: "top" } : undefined}
                         >
                           {beforeGoal ? (
@@ -535,7 +539,7 @@ export default function MatrixPage() {
                             <button
                               onClick={() => toggleCell(goal.id, dateStr)}
                               style={{ width: "120px" }}
-                              className={`relative flex flex-col overflow-hidden transition-colors min-h-16 pt-4 pb-1 px-1.5 ${
+                              className={`relative flex flex-col rounded-md overflow-hidden transition-colors min-h-16 pt-4 pb-1 px-1.5 ${
                                 isDone
                                   ? "bg-emerald-500/10 hover:bg-emerald-500/15"
                                   : isPast && scheduled
