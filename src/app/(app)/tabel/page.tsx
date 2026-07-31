@@ -556,7 +556,7 @@ export default function MatrixPage() {
                                 ) : null}
                               </span>
                               {task?.completion_note && (
-                                <span className={`text-[7px] leading-tight text-left line-clamp-2 break-words w-full ${isDone ? "text-emerald-700 dark:text-emerald-300/80" : "text-red-400/70"}`}>
+                                <span className={`text-[10px] leading-tight text-left line-clamp-3 break-words w-full ${isDone ? "text-emerald-700 dark:text-emerald-300/80" : "text-red-400/70"}`}>
                                   {task.completion_note}
                                 </span>
                               )}
