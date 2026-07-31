@@ -87,7 +87,7 @@ export default function MatrixPage() {
     if (typeof window !== "undefined") return localStorage.getItem("matrix_show_notes") === "true";
     return false;
   });
-  type NotePopover = { taskId: string; note: string; goalTitle: string; dateLabel: string };
+  type NotePopover = { taskId: string; note: string; goalTitle: string; dateLabel: string; isDone: boolean };
   const [notePopover, setNotePopover] = useState<NotePopover | null>(null);
 
   const rangeStart = fromToday
@@ -191,13 +191,14 @@ export default function MatrixPage() {
     const supabase = createClient();
 
     if (existing) {
-      if (showNotes && existing.is_done) {
+      if (showNotes) {
         const goal = goals.find((g) => g.id === goalId);
         setNotePopover({
           taskId: existing.id,
           note: existing.completion_note || "",
           goalTitle: goal?.title || "",
           dateLabel: format(parseISO(dateStr), "d MMMM yyyy", { locale: ru }),
+          isDone: existing.is_done,
         });
         return;
       }
@@ -263,11 +264,18 @@ export default function MatrixPage() {
     }
   }
 
-  async function saveNote(taskId: string, note: string) {
+  async function saveNote(taskId: string, note: string, isDone?: boolean) {
     const supabase = createClient();
     const val = note.trim() || null;
-    setTasks((prev) => prev.map((t) => t.id === taskId ? { ...t, completion_note: val } : t));
-    await supabase.from("tasks").update({ completion_note: val }).eq("id", taskId);
+    const completedAt = isDone === true ? new Date().toISOString() : isDone === false ? null : undefined;
+    setTasks((prev) => prev.map((t) =>
+      t.id === taskId
+        ? { ...t, completion_note: val, ...(isDone !== undefined ? { is_done: isDone, completed_at: completedAt ?? null } : {}) }
+        : t
+    ));
+    const update: Record<string, unknown> = { completion_note: val };
+    if (isDone !== undefined) { update.is_done = isDone; update.completed_at = completedAt ?? null; }
+    await supabase.from("tasks").update(update).eq("id", taskId);
   }
 
   function navigateBack() {
@@ -488,7 +496,7 @@ export default function MatrixPage() {
                           {emoji}
                         </div>
                         <div className="min-w-0">
-                          <div className="text-xs font-medium leading-tight truncate">
+                          <div className="text-xs font-medium leading-snug break-words line-clamp-2 max-w-[120px]">
                             {goal.title}
                           </div>
                           {goalIdx === 0 && (
@@ -657,7 +665,7 @@ export default function MatrixPage() {
       {notePopover && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
-          onClick={() => { saveNote(notePopover.taskId, notePopover.note); setNotePopover(null); }}
+          onClick={() => { saveNote(notePopover.taskId, notePopover.note, notePopover.isDone); setNotePopover(null); }}
         >
           <div
             className="bg-card border border-border/50 rounded-2xl p-5 w-80 shadow-xl"
@@ -665,27 +673,42 @@ export default function MatrixPage() {
           >
             <div className="text-sm font-semibold mb-0.5 truncate">{notePopover.goalTitle}</div>
             <div className="text-xs text-muted-foreground mb-3">{notePopover.dateLabel}</div>
+
+            {/* Done toggle */}
+            <button
+              onClick={() => setNotePopover((prev) => prev ? { ...prev, isDone: !prev.isDone } : null)}
+              className={`flex items-center gap-2 w-full px-3 py-2 rounded-xl text-sm font-medium mb-3 transition-all ${
+                notePopover.isDone
+                  ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20"
+                  : "bg-muted/40 text-muted-foreground hover:bg-muted/60"
+              }`}
+            >
+              <div className={`h-4 w-4 rounded-full border-2 flex items-center justify-center shrink-0 ${notePopover.isDone ? "border-emerald-500 bg-emerald-500" : "border-border/60"}`}>
+                {notePopover.isDone && <Check className="h-2.5 w-2.5 text-white" strokeWidth={3} />}
+              </div>
+              {notePopover.isDone ? "Выполнено — нажми чтобы отменить" : "Не выполнено — нажми чтобы отметить"}
+            </button>
+
             <textarea
-              autoFocus
               value={notePopover.note}
               onChange={(e) => setNotePopover((prev) => prev ? { ...prev, note: e.target.value } : null)}
-              placeholder="Что сделал? Где остановился?..."
-              className="w-full h-24 resize-none text-sm bg-input/50 border border-border/50 rounded-xl p-3 outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/30 transition-all"
+              placeholder={notePopover.isDone ? "Что сделал? Заметки..." : "Почему не получилось?..."}
+              className="w-full h-20 resize-none text-sm bg-input/50 border border-border/50 rounded-xl p-3 outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/30 transition-all"
               onKeyDown={(e) => {
-                if (e.key === "Escape") { saveNote(notePopover.taskId, notePopover.note); setNotePopover(null); }
-                if (e.key === "Enter" && e.metaKey) { saveNote(notePopover.taskId, notePopover.note); setNotePopover(null); }
+                if (e.key === "Escape") { saveNote(notePopover.taskId, notePopover.note, notePopover.isDone); setNotePopover(null); }
+                if (e.key === "Enter" && e.metaKey) { saveNote(notePopover.taskId, notePopover.note, notePopover.isDone); setNotePopover(null); }
               }}
             />
             <div className="flex gap-2 mt-3">
               <button
-                onClick={() => { saveNote(notePopover.taskId, notePopover.note); setNotePopover(null); }}
+                onClick={() => { saveNote(notePopover.taskId, notePopover.note, notePopover.isDone); setNotePopover(null); }}
                 className="flex-1 py-2 rounded-xl bg-primary/10 text-primary text-sm font-medium hover:bg-primary/15 transition-colors"
               >
                 Сохранить
               </button>
               {notePopover.note && (
                 <button
-                  onClick={() => { saveNote(notePopover.taskId, ""); setNotePopover(null); }}
+                  onClick={() => { saveNote(notePopover.taskId, "", notePopover.isDone); setNotePopover(null); }}
                   className="px-3 py-2 rounded-xl text-red-400/70 text-sm hover:bg-red-500/10 transition-colors"
                   title="Удалить заметку"
                 >
