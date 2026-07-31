@@ -437,7 +437,7 @@ export default function MatrixPage() {
           animate={{ opacity: 1 }}
           className="rounded-2xl border border-border/30 overflow-auto bg-card"
         >
-          <table className="w-full text-xs border-collapse">
+          <table className="text-xs border-collapse">
             <thead className="sticky top-0 z-10 bg-card">
               <tr>
                 <th className="text-left px-3 py-2.5 font-medium text-muted-foreground border-b border-border/30 min-w-[160px] sticky left-0 bg-card z-20">
