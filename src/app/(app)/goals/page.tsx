@@ -565,6 +565,7 @@ function GoalDialog({
   const [categoryId, setCategoryId] = useState<string>("none");
   const [parentGoalId, setParentGoalId] = useState<string>("none");
   const [targetDate, setTargetDate] = useState("");
+  const [reminderTime, setReminderTime] = useState("");
   const [status, setStatus] = useState<ColumnId>("deferred");
   const [saving, setSaving] = useState(false);
 
@@ -577,6 +578,7 @@ function GoalDialog({
         setCategoryId(goal.category_id || "none");
         setParentGoalId(goal.parent_goal_id || "none");
         setTargetDate(goal.target_date || "");
+        setReminderTime(goal.reminder_time || "");
         setStatus(goal.status);
       } else {
         setTitle("");
@@ -585,6 +587,7 @@ function GoalDialog({
         setCategoryId("none");
         setParentGoalId("none");
         setTargetDate("");
+        setReminderTime("");
         setStatus("deferred");
       }
     }
@@ -615,6 +618,7 @@ function GoalDialog({
       category_id: categoryId === "none" ? null : categoryId,
       parent_goal_id: parentGoalId === "none" ? null : parentGoalId,
       target_date: targetDate || null,
+      reminder_time: reminderTime || null,
       tracking_type: "milestone" as const,
       status,
       completed_at: completedAt,
@@ -737,15 +741,26 @@ function GoalDialog({
             </div>
           )}
 
-          <div>
-            <label className="text-xs text-muted-foreground mb-1.5 block">Дедлайн</label>
-            <Input
-              type="date"
-              value={targetDate}
-              onChange={(e) => setTargetDate(e.target.value)}
-              className="h-11 bg-input/50 border-border/50"
-              placeholder="дд.мм.гггг"
-            />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-muted-foreground mb-1.5 block">Дедлайн</label>
+              <Input
+                type="date"
+                value={targetDate}
+                onChange={(e) => setTargetDate(e.target.value)}
+                className="h-11 bg-input/50 border-border/50"
+                placeholder="дд.мм.гггг"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1.5 block">Время уведомления</label>
+              <Input
+                type="time"
+                value={reminderTime}
+                onChange={(e) => setReminderTime(e.target.value)}
+                className="h-11 bg-input/50 border-border/50"
+              />
+            </div>
           </div>
 
           <div className="flex gap-3 pt-2">
