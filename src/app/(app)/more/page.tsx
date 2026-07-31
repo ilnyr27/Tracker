@@ -18,6 +18,7 @@ import {
   Check,
   Loader2,
   X,
+  Archive,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Button } from "@/components/ui/button";
@@ -47,6 +48,7 @@ const menuGroups = [
   {
     label: "Система",
     items: [
+      { href: "/archive", label: "Архив", description: "Удалённые и выполненные цели", icon: Archive },
       { href: "/faq", label: "Вопросы и ответы", description: "Как пользоваться приложением", icon: HelpCircle },
       { href: "/settings", label: "Настройки", description: "Тема, аккаунт", icon: Settings },
     ],
