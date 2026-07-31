@@ -25,7 +25,6 @@ export async function GET(req: NextRequest) {
   const localMs = nowUtc.getTime() + tzOffset * 60 * 60 * 1000;
   const local = new Date(localMs);
   const todayStr = local.toISOString().slice(0, 10);
-  // Current local time HH:MM
   const hh = String(local.getUTCHours()).padStart(2, "0");
   const mm = String(local.getUTCMinutes()).padStart(2, "0");
   const currentTime = `${hh}:${mm}`;
@@ -37,7 +36,7 @@ export async function GET(req: NextRequest) {
     .not("reminder_time", "is", null)
     .like("reminder_time", `${currentTime}%`);
 
-  // Goals with reminder_time matching now and reminder_date = today
+  // Goals with reminder_time matching now
   const { data: goals } = await supabase
     .from("goals")
     .select("user_id, title, reminder_time, reminder_date")
@@ -50,10 +49,20 @@ export async function GET(req: NextRequest) {
     ...(goals || []).map((g) => ({ user_id: g.user_id, title: g.title })),
   ];
 
-  if (reminders.length === 0) return NextResponse.json({ sent: 0 });
+  // Deduplicate: same user + same title = one notification
+  const seen = new Set<string>();
+  const unique = reminders.filter((r) => {
+    const key = `${r.user_id}:${r.title}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  if (unique.length === 0) return NextResponse.json({ sent: 0, time: currentTime, found: 0 });
 
   let sent = 0;
-  for (const reminder of reminders) {
+  let errors = 0;
+  for (const reminder of unique) {
     const { data: subs } = await supabase
       .from("push_subscriptions")
       .select("endpoint, p256dh, auth")
@@ -70,12 +79,16 @@ export async function GET(req: NextRequest) {
           })
         );
         sent++;
-      } catch {
-        // Subscription expired — remove it
-        await supabase.from("push_subscriptions").delete().eq("endpoint", sub.endpoint);
+      } catch (err: unknown) {
+        errors++;
+        // Only remove subscription if endpoint is truly gone (HTTP 410)
+        const status = (err as { statusCode?: number })?.statusCode;
+        if (status === 410) {
+          await supabase.from("push_subscriptions").delete().eq("endpoint", sub.endpoint);
+        }
       }
     }
   }
 
-  return NextResponse.json({ sent, time: currentTime });
+  return NextResponse.json({ sent, errors, time: currentTime, found: unique.length });
 }
