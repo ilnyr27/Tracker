@@ -309,10 +309,10 @@ export default function GoalsPage() {
             ))}
           </div>
 
-          {/* Mobile: horizontal scroll */}
+          {/* Mobile: horizontal scroll — "В работе" first */}
           <div className="md:hidden overflow-x-auto pb-28">
             <div className="flex gap-3 p-4 min-w-max">
-              {COLUMNS.map((col) => (
+              {[...COLUMNS].sort((a) => a.id === "active" ? -1 : 0).map((col) => (
                 <div key={col.id} className="w-[75vw] shrink-0">
                   <KanbanColumn
                     column={col}

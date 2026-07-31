@@ -28,7 +28,7 @@ self.addEventListener("push", (event) => {
     body: data.body || "У тебя есть задачи на сегодня!",
     icon: "/icons/icon-192.png",
     badge: "/icons/icon-192.png",
-    vibrate: [100, 50, 100],
+    vibrate: [300, 100, 300, 100, 300],
     data: {
       url: data.url || "/today",
     },
@@ -67,7 +67,7 @@ self.addEventListener("message", (event) => {
         body: body || "Напоминание",
         icon: "/icons/icon-192.png",
         badge: "/icons/icon-192.png",
-        vibrate: [100, 50, 100],
+        vibrate: [300, 100, 300, 100, 300],
         data: { url: url || "/today" },
       });
     }, delay || 0);

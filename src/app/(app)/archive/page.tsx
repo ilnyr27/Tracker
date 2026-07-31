@@ -63,7 +63,7 @@ export default function ArchivePage() {
     <div className="mx-auto max-w-2xl p-4 pb-24 md:pb-4">
       <div className="flex items-center gap-3 mb-6">
         <Link
-          href="/settings"
+          href="/more"
           className="p-2 -ml-2 rounded-xl hover:bg-accent/50 transition-colors"
         >
           <ChevronLeft className="h-5 w-5" />

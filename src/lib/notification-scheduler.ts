@@ -65,6 +65,7 @@ async function showNotification(title: string, body: string) {
       icon: "/icons/icon-192.png",
       badge: "/icons/icon-192.png",
       requireInteraction: true,
+      vibrate: [300, 100, 300, 100, 300],
       tag: `goal-${Date.now()}`,
       data: { url: "/today" },
     } as NotificationOptions);
@@ -88,10 +89,12 @@ async function checkAndFire() {
   const fired = getFiredToday();
 
   for (const goal of goals) {
-    if (fired.has(goal.id)) continue;
-
     // Parse reminder time (HH:MM or HH:MM:SS)
     const goalTime = goal.reminder_time.slice(0, 5); // "HH:MM"
+    // Key = id:time so changing reminder time allows re-fire today
+    const fireKey = `${goal.id}:${goalTime}`;
+
+    if (fired.has(fireKey)) continue;
 
     // For milestone goals with reminder_date — only fire on that date
     if (goal.reminder_date && goal.reminder_date !== todayStr) continue;
@@ -102,7 +105,7 @@ async function checkAndFire() {
         `🔔 ${goal.title}`,
         "Пора! Не забудь выполнить."
       );
-      markFired(goal.id);
+      markFired(fireKey);
     }
   }
 }
