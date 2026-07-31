@@ -1800,6 +1800,7 @@ function EditGoalDialog({
   const [targetDays, setTargetDays] = useState(
     goal.target_days && goal.target_days >= 99999 ? "∞" : String(goal.target_days || 30)
   );
+  const [reminderTime, setReminderTime] = useState(goal.reminder_time || "");
   const [recurrenceMode, setRecurrenceMode] = useState<"weekly" | "weekly_custom" | "monthly">("weekly");
   const [weekDays, setWeekDays] = useState<number[]>([1, 2, 3, 4, 5, 6, 0]);
   const [advancedWeekdays, setAdvancedWeekdays] = useState<number[]>([1]);
@@ -1815,6 +1816,7 @@ function EditGoalDialog({
     setTargetDays(
       goal.target_days && goal.target_days >= 99999 ? "∞" : String(goal.target_days || 30)
     );
+    setReminderTime(goal.reminder_time || "");
     setLoading(true);
 
     const supabase = createClient();
@@ -1829,6 +1831,7 @@ function EditGoalDialog({
         setTemplate(tmpl || null);
 
         if (tmpl) {
+          if (tmpl.reminder_time) setReminderTime(tmpl.reminder_time);
           if (tmpl.recurrence === "weekly") {
             setRecurrenceMode("weekly");
             setWeekDays(tmpl.recurrence_days || []);
@@ -1856,7 +1859,10 @@ function EditGoalDialog({
     setSaving(true);
     const supabase = createClient();
 
-    const goalUpdate: Record<string, unknown> = { title: title.trim() };
+    const goalUpdate: Record<string, unknown> = {
+      title: title.trim(),
+      reminder_time: reminderTime || null,
+    };
     if (goal.tracking_type === "habit") {
       goalUpdate.target_days = targetDays === "∞" ? 99999 : parseInt(targetDays) || 30;
     }
@@ -1877,7 +1883,10 @@ function EditGoalDialog({
             await supabase.from("task_templates").delete().eq("id", template.id);
           }
         } else if (hasWeekly || hasWeeklyCustom || hasMonthly) {
-          const tmplData: Record<string, unknown> = { title: title.trim() };
+          const tmplData: Record<string, unknown> = {
+            title: title.trim(),
+            reminder_time: reminderTime || null,
+          };
 
           if (hasWeekly) {
             tmplData.recurrence = "weekly";
@@ -1935,6 +1944,16 @@ function EditGoalDialog({
               autoFocus
               className="h-12 bg-input/50 border-border/50 text-base"
             />
+
+            <div>
+              <label className="text-xs text-muted-foreground mb-1.5 block">Время уведомления</label>
+              <Input
+                type="time"
+                value={reminderTime}
+                onChange={(e) => setReminderTime(e.target.value)}
+                className="h-11 bg-input/50 border-border/50"
+              />
+            </div>
 
             {isHabit && template && (
               <p className="text-xs text-muted-foreground/60">
