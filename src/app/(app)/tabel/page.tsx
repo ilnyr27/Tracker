@@ -525,7 +525,7 @@ export default function MatrixPage() {
                       return (
                         <td
                           key={dateStr}
-                          className={`text-center ${isYearView ? "px-0 py-0.5" : isExcel ? "px-0.5 py-0.5" : "px-0.5 py-1.5"} ${today && !isExcel ? "bg-primary/3" : ""}`}
+                          className={`text-center ${isYearView ? "px-0 py-0.5" : isExcel ? "px-0 py-0" : "px-0.5 py-1.5"} ${today && !isExcel ? "bg-primary/3" : ""}`}
                           style={isExcel ? { verticalAlign: "top" } : undefined}
                         >
                           {beforeGoal ? (
@@ -534,8 +534,8 @@ export default function MatrixPage() {
                             /* ── Excel-style cell ── */
                             <button
                               onClick={() => toggleCell(goal.id, dateStr)}
-                              style={{ width: baseMode === "week" ? "52px" : "36px" }}
-                              className={`relative flex flex-col rounded-lg overflow-hidden transition-colors min-h-12 pt-4 pb-1 px-1 ${
+                              style={{ width: "120px" }}
+                              className={`relative flex flex-col overflow-hidden transition-colors min-h-16 pt-4 pb-1 px-1.5 ${
                                 isDone
                                   ? "bg-emerald-500/10 hover:bg-emerald-500/15"
                                   : isPast && scheduled
