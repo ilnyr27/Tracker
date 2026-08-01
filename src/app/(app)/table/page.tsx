@@ -49,7 +49,7 @@ export default function TablePage() {
         .select("*")
         .gte("scheduled_date", startStr)
         .lte("scheduled_date", endStr)
-        .is("goal_id", null)
+        .or("goal_id.is.null,template_id.not.is.null")
         .order("sort_order"),
       supabase
         .from("categories")
