@@ -49,6 +49,7 @@ export default function TablePage() {
         .select("*")
         .gte("scheduled_date", startStr)
         .lte("scheduled_date", endStr)
+        .is("goal_id", null)
         .order("sort_order"),
       supabase
         .from("categories")
@@ -282,7 +283,7 @@ export default function TablePage() {
                                       }}
                                     />
                                   )}
-                                  <span className="truncate">
+                                  <span className="break-words leading-snug">
                                     {task.title}
                                   </span>
                                 </button>

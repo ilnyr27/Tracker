@@ -67,14 +67,15 @@ function SheetsPageInner() {
 
     if (tabsData) {
       setTabs(tabsData);
-      if (!activeTabId && tabsData.length > 0) {
-        // If URL has tab param, use it; otherwise first tab
-        const target = urlTabId && tabsData.some((t) => t.id === urlTabId) ? urlTabId : tabsData[0].id;
-        setActiveTabId(target);
-      }
+      setActiveTabId((prev) => {
+        if (prev) return prev;
+        return urlTabId && tabsData.some((t) => t.id === urlTabId)
+          ? urlTabId
+          : tabsData[0]?.id ?? null;
+      });
     }
     setLoading(false);
-  }, [activeTabId, urlTabId]);
+  }, [urlTabId]);
 
   useEffect(() => {
     loadData();
