@@ -3,10 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import {
-  BookOpen,
   Target,
   Table2,
-  Layers,
   Settings,
   ChevronRight,
   Camera,
@@ -34,7 +32,6 @@ const menuGroups = [
   {
     label: "Записи",
     items: [
-      { href: "/journal", label: "Журнал", description: "Мысли и заметки", icon: BookOpen },
       { href: "/photos", label: "Фото-дневник", description: "Фото каждого дня", icon: Camera },
     ],
   },
@@ -42,7 +39,6 @@ const menuGroups = [
     label: "Данные",
     items: [
       { href: "/table", label: "Таблица", description: "Полная таблица как в Excel", icon: Table2 },
-      { href: "/sheets", label: "Листы", description: "Книги, привычки и др.", icon: Layers },
     ],
   },
   {

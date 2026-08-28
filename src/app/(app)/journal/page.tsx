@@ -6,15 +6,17 @@ import { format } from "date-fns";
 import { ru } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Send, Trash2, Search, X, Pencil, Check } from "lucide-react";
+import { Send, Trash2, Search, X, Pencil, Check, List } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import type { Note } from "@/lib/supabase/types";
 import { toast } from "sonner";
+import Link from "next/link";
 
 export default function JournalPage() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [newNote, setNewNote] = useState("");
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searching, setSearching] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -37,10 +39,11 @@ export default function JournalPage() {
   }
 
   async function addNote() {
-    if (!newNote.trim()) return;
+    if (!newNote.trim() || submitting) return;
+    setSubmitting(true);
     const supabase = createClient();
     const { data: userData } = await supabase.auth.getUser();
-    if (!userData.user) return;
+    if (!userData.user) { setSubmitting(false); return; }
 
     const today = format(new Date(), "yyyy-MM-dd");
     const { data } = await supabase
@@ -59,6 +62,7 @@ export default function JournalPage() {
     } else {
       toast.error("Не удалось сохранить заметку");
     }
+    setSubmitting(false);
   }
 
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
@@ -109,10 +113,9 @@ export default function JournalPage() {
 
   return (
     <div className="mx-auto max-w-2xl p-4 flex flex-col h-[calc(100vh-5rem)] md:h-screen">
-      <div className="flex items-center justify-between mb-4">
-        <h1 className="text-xl font-bold gradient-text">
-          Журнал мыслей
-        </h1>
+      {/* Header + tab switcher */}
+      <div className="flex items-center justify-between mb-3">
+        <h1 className="text-xl font-bold gradient-text">Журнал</h1>
         <Button
           variant="ghost"
           size="icon"
@@ -124,6 +127,20 @@ export default function JournalPage() {
         >
           {searching ? <X className="h-4 w-4" /> : <Search className="h-4 w-4" />}
         </Button>
+      </div>
+
+      {/* Журнал / Список switcher */}
+      <div className="flex rounded-xl border border-border/50 overflow-hidden text-xs mb-3">
+        <button className="flex-1 px-3 py-2 bg-primary/10 text-primary font-semibold">
+          Журнал
+        </button>
+        <Link
+          href="/sheets"
+          className="flex-1 px-3 py-2 text-muted-foreground hover:bg-accent/40 text-center transition-colors flex items-center justify-center gap-1"
+        >
+          <List className="h-3.5 w-3.5" />
+          Список
+        </Link>
       </div>
 
       {searching && (
@@ -231,12 +248,12 @@ export default function JournalPage() {
                               {format(new Date(note.created_at), "HH:mm")}
                             </p>
                           </div>
-                          <div className="absolute top-3 right-3 flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                          <div className="absolute top-3 right-3 flex gap-1">
                             <button
                               onClick={() => startEdit(note)}
                               className="p-1 rounded-lg hover:bg-primary/10 transition-all"
                             >
-                              <Pencil className="h-3.5 w-3.5 text-muted-foreground/40 hover:text-primary" />
+                              <Pencil className="h-3.5 w-3.5 text-muted-foreground/30 hover:text-primary" />
                             </button>
                             {confirmDeleteId === note.id ? (
                               <div className="flex items-center gap-1">
@@ -258,7 +275,7 @@ export default function JournalPage() {
                                 onClick={() => setConfirmDeleteId(note.id)}
                                 className="p-1 rounded-lg hover:bg-destructive/10 transition-all"
                               >
-                                <Trash2 className="h-3.5 w-3.5 text-muted-foreground/40 hover:text-destructive" />
+                                <Trash2 className="h-3.5 w-3.5 text-muted-foreground/30 hover:text-destructive" />
                               </button>
                             )}
                           </div>

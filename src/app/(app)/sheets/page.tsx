@@ -12,6 +12,7 @@ import {
   List,
   Check,
   Pencil,
+  BookOpen,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,6 +33,7 @@ import {
 } from "@/components/ui/select";
 import { motion, AnimatePresence } from "motion/react";
 import type { CustomTab, TabEntry } from "@/lib/supabase/types";
+import Link from "next/link";
 
 const TAB_TYPE_CONFIG = {
   freeform: { icon: FileText, label: "Свободный текст" },
@@ -208,15 +210,30 @@ function SheetsPageInner() {
       {/* Header + Tab bar — sticky */}
       <div className="sticky top-0 z-10 bg-background pb-2">
         <div className="flex items-center justify-between mb-3 pt-1">
-          <h1 className="text-xl font-bold gradient-text">Листы</h1>
+          <h1 className="text-xl font-bold gradient-text">Журнал</h1>
           <Button
             size="sm"
             className="gradient-primary text-white border-0 hover:opacity-90"
             onClick={() => setCreateOpen(true)}
           >
             <Plus className="h-4 w-4 mr-1" />
-            Новый лист
+            Новый список
           </Button>
+        </div>
+
+        {/* Журнал / Список switcher */}
+        <div className="flex rounded-xl border border-border/50 overflow-hidden text-xs mb-3">
+          <Link
+            href="/journal"
+            className="flex-1 px-3 py-2 text-muted-foreground hover:bg-accent/40 text-center transition-colors flex items-center justify-center gap-1"
+          >
+            <BookOpen className="h-3.5 w-3.5" />
+            Журнал
+          </Link>
+          <button className="flex-1 px-3 py-2 bg-primary/10 text-primary font-semibold flex items-center justify-center gap-1">
+            <List className="h-3.5 w-3.5" />
+            Список
+          </button>
         </div>
 
         {/* Tab bar */}
