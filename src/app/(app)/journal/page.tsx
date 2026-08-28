@@ -6,7 +6,7 @@ import { format } from "date-fns";
 import { ru } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Send, Trash2, Search, X, Pencil, Check, List } from "lucide-react";
+import { Send, Trash2, Search, X, Check, List } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import type { Note } from "@/lib/supabase/types";
 import { toast } from "sonner";
@@ -240,7 +240,10 @@ export default function JournalPage() {
                         </div>
                       ) : (
                         <>
-                          <p className="text-sm whitespace-pre-wrap leading-relaxed pr-12">
+                          <p
+                            className="text-sm whitespace-pre-wrap leading-relaxed pr-10 cursor-text"
+                            onClick={() => startEdit(note)}
+                          >
                             {note.content}
                           </p>
                           <div className="flex items-center justify-between mt-2">
@@ -249,12 +252,6 @@ export default function JournalPage() {
                             </p>
                           </div>
                           <div className="absolute top-3 right-3 flex gap-1">
-                            <button
-                              onClick={() => startEdit(note)}
-                              className="p-1 rounded-lg hover:bg-primary/10 transition-all"
-                            >
-                              <Pencil className="h-3.5 w-3.5 text-muted-foreground/30 hover:text-primary" />
-                            </button>
                             {confirmDeleteId === note.id ? (
                               <div className="flex items-center gap-1">
                                 <button
