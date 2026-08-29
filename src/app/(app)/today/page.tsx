@@ -2,6 +2,8 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { format, subDays, parseISO } from "date-fns";
+import { ru } from "date-fns/locale";
 import {
   Plus,
   Check,
@@ -232,6 +234,19 @@ const item = {
   show: { opacity: 1, scale: 1 },
 };
 
+function getGreeting() {
+  const h = new Date().getHours();
+  if (h >= 5 && h < 12) return "Доброе утро";
+  if (h >= 12 && h < 17) return "Добрый день";
+  return "Добрый вечер";
+}
+
+function pluralDays(n: number) {
+  if (n % 10 === 1 && n % 100 !== 11) return "день";
+  if (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20)) return "дня";
+  return "дней";
+}
+
 export default function MainPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [goals, setGoals] = useState<Goal[]>([]);
@@ -260,6 +275,9 @@ export default function MainPage() {
   const [dragOverPos, setDragOverPos] = useState<"above" | "below">("below");
   const [userStatus, setUserStatus] = useState("Баланс — это прогресс");
   const [editingStatus, setEditingStatus] = useState(false);
+  const [todayDone, setTodayDone] = useState(0);
+  const [todayTotal, setTodayTotal] = useState(0);
+  const [streak, setStreak] = useState(0);
 
   useEffect(() => {
     const saved = localStorage.getItem("life_os_status");
@@ -269,8 +287,9 @@ export default function MainPage() {
   const loadData = useCallback(async () => {
     setLoading(true);
     const supabase = createClient();
+    const todayStr = format(new Date(), "yyyy-MM-dd");
 
-    const [catRes, goalsRes, tasksRes] = await Promise.all([
+    const [catRes, goalsRes, tasksRes, todayRes, streakRes] = await Promise.all([
       supabase
         .from("categories")
         .select("*")
@@ -285,11 +304,43 @@ export default function MainPage() {
         .from("tasks")
         .select("*")
         .not("goal_id", "is", null),
+      supabase
+        .from("tasks")
+        .select("id, is_done")
+        .eq("scheduled_date", todayStr)
+        .not("goal_id", "is", null),
+      supabase
+        .from("tasks")
+        .select("scheduled_date")
+        .eq("is_done", true)
+        .not("scheduled_date", "is", null)
+        .order("scheduled_date", { ascending: false })
+        .limit(90),
     ]);
 
     if (catRes.data) setCategories(catRes.data);
     if (goalsRes.data) setGoals(goalsRes.data);
     if (tasksRes.data) setTasks(tasksRes.data);
+
+    if (todayRes.data) {
+      setTodayTotal(todayRes.data.length);
+      setTodayDone(todayRes.data.filter((t) => t.is_done).length);
+    }
+
+    if (streakRes.data) {
+      const doneDates = new Set(streakRes.data.map((t) => t.scheduled_date as string));
+      let count = 0;
+      for (let i = 0; i < 90; i++) {
+        const d = format(subDays(new Date(), i), "yyyy-MM-dd");
+        if (doneDates.has(d)) {
+          count++;
+        } else {
+          break;
+        }
+      }
+      setStreak(count);
+    }
+
     setLoading(false);
   }, []);
 
@@ -423,53 +474,69 @@ export default function MainPage() {
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-6 pb-28 md:px-6 md:pb-6">
-      {/* Header */}
-      <div className="mb-6 flex items-end justify-between">
-        <div>
-          <h1 className="text-3xl font-bold gradient-text tracking-tight">Life OS</h1>
-          {editingStatus ? (
-            <input
-              value={userStatus}
-              onChange={(e) => setUserStatus(e.target.value)}
-              onBlur={() => { setEditingStatus(false); localStorage.setItem("life_os_status", userStatus); }}
-              onKeyDown={(e) => { if (e.key === "Enter") { setEditingStatus(false); localStorage.setItem("life_os_status", userStatus); } }}
-              autoFocus
-              className="text-sm text-muted-foreground mt-1 bg-transparent border-b border-primary/30 outline-none w-full max-w-[250px]"
-              placeholder="Напиши свой статус..."
-            />
-          ) : (
-            <p
-              className="text-sm text-muted-foreground mt-1 cursor-pointer hover:text-muted-foreground/80 transition-colors"
-              onClick={() => setEditingStatus(true)}
-              title="Нажми чтобы изменить"
-            >
-              {userStatus}
-            </p>
-          )}
-        </div>
-        <div className="flex items-center gap-1.5">
-          {viewMode === "list" && (
-            <button
-              onClick={() => { const next = !showGoals; setShowGoals(next); localStorage.setItem("life_os_show_goals", String(next)); }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1 ${showGoals ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-accent/50"}`}
-            >
-              Все цели
-              <ChevronDown className={`h-3 w-3 transition-transform ${showGoals ? "rotate-180" : ""}`} />
-            </button>
-          )}
-          <div className="flex bg-muted rounded-lg p-0.5">
-            <button
-              onClick={() => setViewMode("grid")}
-              className={`p-1.5 rounded-md transition-all ${viewMode === "grid" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground"}`}
-            >
-              <LayoutGrid className="h-4 w-4" />
-            </button>
-            <button
-              onClick={() => setViewMode("list")}
-              className={`p-1.5 rounded-md transition-all ${viewMode === "list" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground"}`}
-            >
-              <List className="h-4 w-4" />
-            </button>
+      {/* Greeting header */}
+      <div className="mb-5 rounded-2xl border border-border/40 bg-card/60 p-4 backdrop-blur-sm">
+        <p className="text-[11px] text-muted-foreground/50 capitalize mb-0.5">
+          {format(new Date(), "EEEE, d MMMM", { locale: ru })}
+        </p>
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0 flex-1">
+            <h1 className="text-xl font-bold gradient-text leading-tight">
+              {getGreeting()}, Ильнур 👋
+            </h1>
+            {todayTotal > 0 ? (
+              <div className="mt-2.5">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[11px] text-muted-foreground/50">Задачи на сегодня</span>
+                  <span className="text-[11px] font-semibold text-muted-foreground/70">
+                    {todayDone} из {todayTotal}
+                  </span>
+                </div>
+                <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                  <motion.div
+                    className="h-full rounded-full gradient-primary"
+                    initial={{ width: 0 }}
+                    animate={{ width: `${Math.round((todayDone / todayTotal) * 100)}%` }}
+                    transition={{ duration: 0.8, ease: "easeOut" }}
+                  />
+                </div>
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground/40 mt-1">Задач на сегодня нет</p>
+            )}
+            {streak > 0 && (
+              <div className="mt-2 flex items-center gap-1">
+                <Flame className="h-3.5 w-3.5 text-orange-500" />
+                <span className="text-xs text-muted-foreground/60">
+                  {streak} {pluralDays(streak)} подряд
+                </span>
+              </div>
+            )}
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0 pt-0.5">
+            {viewMode === "list" && (
+              <button
+                onClick={() => { const next = !showGoals; setShowGoals(next); localStorage.setItem("life_os_show_goals", String(next)); }}
+                className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1 ${showGoals ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-accent/50"}`}
+              >
+                Цели
+                <ChevronDown className={`h-3 w-3 transition-transform ${showGoals ? "rotate-180" : ""}`} />
+              </button>
+            )}
+            <div className="flex bg-muted rounded-lg p-0.5">
+              <button
+                onClick={() => setViewMode("grid")}
+                className={`p-1.5 rounded-md transition-all ${viewMode === "grid" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground"}`}
+              >
+                <LayoutGrid className="h-3.5 w-3.5" />
+              </button>
+              <button
+                onClick={() => setViewMode("list")}
+                className={`p-1.5 rounded-md transition-all ${viewMode === "list" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground"}`}
+              >
+                <List className="h-3.5 w-3.5" />
+              </button>
+            </div>
           </div>
         </div>
       </div>
