@@ -209,6 +209,10 @@ export default function JournalPage() {
                             autoFocus
                             value={editContent}
                             onChange={(e) => setEditContent(e.target.value)}
+                            onFocus={(e) => {
+                              const len = e.target.value.length;
+                              e.target.setSelectionRange(len, len);
+                            }}
                             onKeyDown={(e) => {
                               if (e.key === "Enter" && !e.shiftKey) {
                                 e.preventDefault();

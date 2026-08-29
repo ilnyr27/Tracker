@@ -468,9 +468,9 @@ export default function MatrixPage() {
                           {day.getDate() === 1 ? format(day, "LLL", { locale: ru }).charAt(0).toUpperCase() : ""}
                         </span>
                       ) : (
-                        <div className="flex flex-col items-center leading-tight">
-                          <span className="text-[9px] capitalize">{dayName}</span>
-                          <span className={`text-[11px] ${today ? "font-bold bg-primary text-white rounded-full w-5 h-5 flex items-center justify-center mx-auto" : ""}`}>
+                        <div className="flex flex-col items-center leading-tight gap-0.5">
+                          <span className="text-[10px] font-medium capitalize">{dayName}</span>
+                          <span className={`text-xs ${today ? "font-bold bg-primary text-white rounded-full w-5 h-5 flex items-center justify-center mx-auto" : "font-medium"}`}>
                             {format(day, "d")}
                           </span>
                         </div>
