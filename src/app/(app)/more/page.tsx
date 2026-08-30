@@ -16,6 +16,7 @@ import {
   Loader2,
   X,
   Archive,
+  Table2,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Button } from "@/components/ui/button";
@@ -36,7 +37,9 @@ const menuGroups = [
   },
   {
     label: "Данные",
-    items: [],
+    items: [
+      { href: "/tables", label: "Таблицы", description: "Свои таблицы с произвольными столбцами", icon: Table2 },
+    ],
   },
   {
     label: "Система",
