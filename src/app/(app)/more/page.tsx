@@ -4,7 +4,6 @@ import { useState } from "react";
 import Link from "next/link";
 import {
   Target,
-  Table2,
   Settings,
   ChevronRight,
   Camera,
@@ -37,9 +36,7 @@ const menuGroups = [
   },
   {
     label: "Данные",
-    items: [
-      { href: "/table", label: "Таблица", description: "Полная таблица как в Excel", icon: Table2 },
-    ],
+    items: [],
   },
   {
     label: "Система",

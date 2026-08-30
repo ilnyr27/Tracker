@@ -41,6 +41,13 @@ const COLUMNS: { id: ColumnId; label: string; icon: typeof Check; color: string;
   { id: "cancelled", label: "Архив", icon: Archive, color: "text-muted-foreground", emptyText: "Архив пуст" },
 ];
 
+const MOBILE_COL_COLORS: Record<ColumnId, { pill: string; container: string }> = {
+  deferred: { pill: "bg-amber-500 text-white", container: "bg-amber-500/5 border-amber-500/20" },
+  active: { pill: "bg-blue-500 text-white", container: "bg-blue-500/5 border-blue-500/20" },
+  completed: { pill: "bg-green-500 text-white", container: "bg-green-500/5 border-green-500/20" },
+  cancelled: { pill: "bg-muted-foreground/60 text-white", container: "bg-muted/40 border-border/30" },
+};
+
 const LEVEL_LABELS: Record<Goal["level"], string> = {
   decade: "10 лет",
   year: "Год",
@@ -67,6 +74,7 @@ export default function GoalsPage() {
   const [kanbanMode, setKanbanMode] = useState<KanbanMode>("tasks");
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [overColumn, setOverColumn] = useState<ColumnId | null>(null);
+  const [mobileActiveColumn, setMobileActiveColumn] = useState<ColumnId>("active");
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -325,35 +333,90 @@ export default function GoalsPage() {
             ))}
           </div>
 
-          {/* Mobile: horizontal scroll — "В работе" first */}
-          <div className="md:hidden overflow-x-auto pb-28">
-            <div className="flex gap-3 p-4 min-w-max">
-              {[...COLUMNS].sort((a) => a.id === "active" ? -1 : 0).map((col) => (
-                <div key={col.id} className="w-[62vw] shrink-0">
-                  <KanbanColumn
-                    column={col}
-                    goals={goalsByColumn[col.id]}
-                    catMap={catMap}
-                    onMove={moveGoal}
-                    onEdit={openEdit}
-                    onDelete={deleteGoal}
-                    onAdd={openCreateInColumn}
-                    renamingId={renamingId}
-                    renameValue={renameValue}
-                    onRenameStart={(g) => { setRenamingId(g.id); setRenameValue(g.title); }}
-                    onRenameChange={setRenameValue}
-                    onRenameSave={saveRename}
-                    onRenameCancel={() => setRenamingId(null)}
-                    isOver={overColumn === col.id}
-                    isDragging={!!draggingId}
-                    onDragStart={handleDragStart}
-                    onDragEnd={handleDragEnd}
-                    onDragOver={handleColumnDragOver}
-                    onDragLeave={handleColumnDragLeave}
-                    onDrop={handleColumnDrop}
-                  />
-                </div>
-              ))}
+          {/* Mobile: status filter pills + vertical list */}
+          <div className="md:hidden flex flex-col h-full">
+            {/* Filter pills */}
+            <div className="px-4 pt-3 pb-2 flex gap-2 overflow-x-auto shrink-0 scrollbar-none">
+              {COLUMNS.map((col) => {
+                const ColIcon = col.icon;
+                const count = (goalsByColumn[col.id] || []).length;
+                const isActive = mobileActiveColumn === col.id;
+                return (
+                  <button
+                    key={col.id}
+                    onClick={() => setMobileActiveColumn(col.id)}
+                    className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                      isActive
+                        ? MOBILE_COL_COLORS[col.id].pill
+                        : "bg-muted text-muted-foreground"
+                    }`}
+                  >
+                    <ColIcon className="h-3 w-3" />
+                    {col.label}
+                    {count > 0 && (
+                      <span className={`text-[10px] rounded-full px-1 min-w-[16px] text-center leading-none py-0.5 ${
+                        isActive ? "bg-white/25" : "bg-foreground/10"
+                      }`}>
+                        {count}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Active column cards */}
+            <div className="flex-1 overflow-y-auto px-4 pb-28">
+              {(() => {
+                const col = COLUMNS.find((c) => c.id === mobileActiveColumn)!;
+                const colGoals = goalsByColumn[mobileActiveColumn] || [];
+                return (
+                  <div className={`min-h-32 rounded-2xl border p-3 ${MOBILE_COL_COLORS[mobileActiveColumn].container}`}>
+                    <div className="flex items-center gap-1.5 mb-3">
+                      <col.icon className={`h-3.5 w-3.5 ${col.color}`} />
+                      <span className="text-xs font-semibold">{col.label}</span>
+                      <span className="text-[10px] text-muted-foreground/50 ml-auto">{colGoals.length}</span>
+                    </div>
+                    <div className="space-y-2">
+                      {colGoals.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center py-10 text-center">
+                          <col.icon className="h-6 w-6 text-muted-foreground/15 mb-1.5" />
+                          <p className="text-[11px] text-muted-foreground/30">{col.emptyText}</p>
+                        </div>
+                      ) : (
+                        colGoals.map((goal) => (
+                          <GoalCard
+                            key={goal.id}
+                            goal={goal}
+                            catMap={catMap}
+                            currentColumn={mobileActiveColumn}
+                            onMove={moveGoal}
+                            onEdit={openEdit}
+                            onDelete={deleteGoal}
+                            onDragStart={handleDragStart}
+                            onDragEnd={handleDragEnd}
+                            renamingId={renamingId}
+                            renameValue={renameValue}
+                            onRenameStart={(g) => { setRenamingId(g.id); setRenameValue(g.title); }}
+                            onRenameChange={setRenameValue}
+                            onRenameSave={saveRename}
+                            onRenameCancel={() => setRenamingId(null)}
+                          />
+                        ))
+                      )}
+                    </div>
+                    {mobileActiveColumn !== "cancelled" && (
+                      <button
+                        onClick={() => openCreateInColumn(mobileActiveColumn)}
+                        className="mt-2 flex items-center gap-1.5 px-2 py-1.5 w-full rounded-xl text-[11px] text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-colors"
+                      >
+                        <Plus className="h-3 w-3" />
+                        Добавить
+                      </button>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           </div>
         </div>
