@@ -10,7 +10,6 @@ import {
   BookOpen,
   Camera,
   Table2,
-  Layers,
   Settings,
   LogOut,
 } from "lucide-react";
@@ -32,6 +31,7 @@ const navGroups = [
   {
     label: "Ежедневное",
     items: [
+      { href: "/journal", label: "Журнал", icon: BookOpen },
       { href: "/today", label: "Главная", icon: Home },
       { href: "/tabel", label: "Матрица жизни", icon: Grid3X3 },
       { href: "/calendar", label: "Обзор", icon: CalendarDays },
@@ -46,15 +46,13 @@ const navGroups = [
   {
     label: "Записи",
     items: [
-      { href: "/journal", label: "Журнал", icon: BookOpen },
       { href: "/photos", label: "Фото-дневник", icon: Camera },
     ],
   },
   {
     label: "Данные",
     items: [
-      { href: "/table", label: "Таблица", icon: Table2 },
-      { href: "/sheets", label: "Листы", icon: Layers },
+      { href: "/tables", label: "Таблицы", icon: Table2 },
     ],
   },
 ];
