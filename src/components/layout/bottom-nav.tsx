@@ -15,7 +15,7 @@ import { motion } from "motion/react";
 const navItems = [
   { href: "/journal", label: "Журнал", icon: BookOpen },
   { href: "/tabel", label: "Матрица", icon: Grid3X3 },
-  { href: "/today", label: "Главная", icon: Home },
+  { href: "/today", label: "Трекер", icon: Home },
   { href: "/calendar", label: "Обзор", icon: CalendarDays },
   { href: "/more", label: "Ещё", icon: MoreHorizontal },
 ];

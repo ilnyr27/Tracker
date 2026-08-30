@@ -32,7 +32,7 @@ const navGroups = [
     label: "Ежедневное",
     items: [
       { href: "/journal", label: "Журнал", icon: BookOpen },
-      { href: "/today", label: "Главная", icon: Home },
+      { href: "/today", label: "Трекер", icon: Home },
       { href: "/tabel", label: "Матрица жизни", icon: Grid3X3 },
       { href: "/calendar", label: "Обзор", icon: CalendarDays },
     ],
