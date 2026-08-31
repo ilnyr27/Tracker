@@ -34,7 +34,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         Перейти к содержимому
       </a>
       <Sidebar />
-      <main id="main-content" className="flex-1 pb-20 md:pb-0">{children}</main>
+      <main id="main-content" className="flex-1 pb-20 md:pb-0 overflow-x-hidden">{children}</main>
       <BottomNav />
       <Onboarding />
       <PushPrompt />

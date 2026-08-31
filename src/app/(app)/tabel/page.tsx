@@ -770,8 +770,8 @@ function RadarChart({ stats }: { stats: CatStat[] }) {
           const end = polarToXY(i * angleStep, r);
           return <line key={i} x1={cx} y1={cy} x2={end.x} y2={end.y} stroke="currentColor" strokeOpacity={0.06} />;
         })}
-        {/* Data polygon */}
-        <polygon points={polygon} fill="oklch(0.65 0.25 270 / 0.15)" stroke="oklch(0.65 0.25 270)" strokeWidth={2} />
+        {/* Data polygon — style attr required for CSS color functions in SVG */}
+        <polygon points={polygon} style={{ fill: 'oklch(0.65 0.25 270 / 0.15)', stroke: 'oklch(0.65 0.25 270)' }} strokeWidth={2} />
         {/* Data dots */}
         {dataPoints.map((p, i) => (
           <circle key={i} cx={p.x} cy={p.y} r={4} fill={stats[i].color} stroke="white" strokeWidth={2} />
