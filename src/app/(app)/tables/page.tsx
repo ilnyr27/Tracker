@@ -16,6 +16,8 @@ import type { CustomTab, TabEntry } from "@/lib/supabase/types";
 
 type ColDef = { key: string; label: string };
 
+type EditingCell = { tabId: string; entryId: string; colKey: string } | null;
+
 function getSchema(tab: CustomTab): ColDef[] {
   const s = tab.schema as { columns?: ColDef[] } | null;
   return s?.columns ?? [];
@@ -34,6 +36,11 @@ export default function TablesPage() {
   const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
   const [addRowTabId, setAddRowTabId] = useState<string | null>(null);
+  const [addColTabId, setAddColTabId] = useState<string | null>(null);
+
+  // Inline cell editing
+  const [editingCell, setEditingCell] = useState<EditingCell>(null);
+  const [editingValue, setEditingValue] = useState("");
 
   useEffect(() => {
     loadTabs();
@@ -122,12 +129,7 @@ export default function TablesPage() {
     const entries = tabEntries.get(tabId) ?? [];
     const { data } = await supabase
       .from("tab_entries")
-      .insert({
-        tab_id: tabId,
-        user_id: userData.user.id,
-        data: rowData,
-        sort_order: entries.length,
-      })
+      .insert({ tab_id: tabId, user_id: userData.user.id, data: rowData, sort_order: entries.length })
       .select()
       .single();
 
@@ -149,6 +151,93 @@ export default function TablesPage() {
       return next;
     });
     await supabase.from("tab_entries").delete().eq("id", entryId);
+  }
+
+  // ── Inline cell editing ─────────────────────────────────────────────────────
+
+  function startEditCell(tabId: string, entryId: string, colKey: string, currentValue: string) {
+    setEditingCell({ tabId, entryId, colKey });
+    setEditingValue(currentValue);
+  }
+
+  async function commitCellEdit() {
+    if (!editingCell) return;
+    const { tabId, entryId, colKey } = editingCell;
+    const supabase = createClient();
+
+    setTabEntries((prev) => {
+      const entries = prev.get(tabId) ?? [];
+      return new Map(prev).set(
+        tabId,
+        entries.map((e) =>
+          e.id === entryId
+            ? { ...e, data: { ...(e.data as Record<string, unknown>), [colKey]: editingValue } }
+            : e
+        )
+      );
+    });
+
+    // Find entry and persist
+    const entry = tabEntries.get(tabId)?.find((e) => e.id === entryId);
+    if (entry) {
+      const newData = { ...(entry.data as Record<string, unknown>), [colKey]: editingValue };
+      await supabase.from("tab_entries").update({ data: newData }).eq("id", entryId);
+    }
+
+    setEditingCell(null);
+  }
+
+  // ── Column management ───────────────────────────────────────────────────────
+
+  async function addColumn(tabId: string, label: string) {
+    const supabase = createClient();
+    const tab = tabs.find((t) => t.id === tabId);
+    if (!tab) return;
+    const cols = getSchema(tab);
+    const key = `col_${label.replace(/\s+/g, "_")}_${Date.now()}`;
+    const newCols = [...cols, { key, label }];
+    const newSchema = { columns: newCols };
+
+    setTabs((prev) =>
+      prev.map((t) => (t.id === tabId ? { ...t, schema: newSchema } : t))
+    );
+    await supabase.from("custom_tabs").update({ schema: newSchema }).eq("id", tabId);
+    setAddColTabId(null);
+  }
+
+  async function deleteColumn(tabId: string, colKey: string) {
+    const supabase = createClient();
+    const tab = tabs.find((t) => t.id === tabId);
+    if (!tab) return;
+
+    // Remove col from schema
+    const cols = getSchema(tab).filter((c) => c.key !== colKey);
+    const newSchema = { columns: cols };
+    setTabs((prev) =>
+      prev.map((t) => (t.id === tabId ? { ...t, schema: newSchema } : t))
+    );
+    await supabase.from("custom_tabs").update({ schema: newSchema }).eq("id", tabId);
+
+    // Strip col from all entries in state
+    setTabEntries((prev) => {
+      const entries = prev.get(tabId) ?? [];
+      return new Map(prev).set(
+        tabId,
+        entries.map((e) => {
+          const d = { ...(e.data as Record<string, unknown>) };
+          delete d[colKey];
+          return { ...e, data: d };
+        })
+      );
+    });
+
+    // Persist stripped entries to DB (fire and forget, no await loop needed — entries updated in bulk if possible)
+    const entries = tabEntries.get(tabId) ?? [];
+    for (const e of entries) {
+      const d = { ...(e.data as Record<string, unknown>) };
+      delete d[colKey];
+      supabase.from("tab_entries").update({ data: d }).eq("id", e.id);
+    }
   }
 
   const addRowTab = tabs.find((t) => t.id === addRowTabId);
@@ -180,6 +269,7 @@ export default function TablesPage() {
                   exit={{ opacity: 0, x: -20 }}
                   className="rounded-2xl border border-border/40 bg-card/60 overflow-hidden"
                 >
+                  {/* Table header row */}
                   <div
                     className="flex items-center gap-3 px-4 py-3.5 cursor-pointer hover:bg-accent/30 transition-colors"
                     onClick={() => toggleExpand(tab.id)}
@@ -215,7 +305,16 @@ export default function TablesPage() {
                       >
                         <div className="border-t border-border/30">
                           {cols.length === 0 ? (
-                            <p className="text-xs text-muted-foreground/40 p-4 text-center">Нет столбцов</p>
+                            <div className="p-4 text-center">
+                              <p className="text-xs text-muted-foreground/40 mb-3">Нет столбцов</p>
+                              <button
+                                onClick={() => setAddColTabId(tab.id)}
+                                className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                              >
+                                <Plus className="h-3 w-3" />
+                                Добавить столбец
+                              </button>
+                            </div>
                           ) : (
                             <div className="overflow-x-auto">
                               <table className="w-full text-xs min-w-max">
@@ -227,9 +326,28 @@ export default function TablesPage() {
                                         key={col.key}
                                         className="px-3 py-2 text-left font-medium text-muted-foreground/60 whitespace-nowrap"
                                       >
-                                        {col.label}
+                                        <div className="flex items-center gap-1 group/col">
+                                          <span>{col.label}</span>
+                                          <button
+                                            onClick={() => deleteColumn(tab.id, col.key)}
+                                            className="p-0.5 rounded opacity-0 group-hover/col:opacity-100 hover:bg-destructive/10 hover:text-destructive text-muted-foreground/30 transition-all"
+                                            title={`Удалить столбец ${col.label}`}
+                                          >
+                                            <X className="h-2.5 w-2.5" />
+                                          </button>
+                                        </div>
                                       </th>
                                     ))}
+                                    {/* Add column button in header */}
+                                    <th className="px-2 py-2 w-8">
+                                      <button
+                                        onClick={() => setAddColTabId(tab.id)}
+                                        className="flex items-center justify-center h-5 w-5 rounded border border-dashed border-border/50 text-muted-foreground/40 hover:border-primary/40 hover:text-primary transition-colors"
+                                        title="Добавить столбец"
+                                      >
+                                        <Plus className="h-3 w-3" />
+                                      </button>
+                                    </th>
                                     <th className="w-8" />
                                   </tr>
                                 </thead>
@@ -237,7 +355,7 @@ export default function TablesPage() {
                                   {entries.length === 0 ? (
                                     <tr>
                                       <td
-                                        colSpan={cols.length + 2}
+                                        colSpan={cols.length + 3}
                                         className="px-3 py-6 text-center text-[11px] text-muted-foreground/30"
                                       >
                                         Строк пока нет
@@ -249,17 +367,50 @@ export default function TablesPage() {
                                         key={entry.id}
                                         className="border-b border-border/20 hover:bg-accent/20 transition-colors"
                                       >
-                                        <td className="px-2 py-2.5 text-center text-muted-foreground/30 font-mono text-[10px]">{rowIdx + 1}</td>
-                                        {cols.map((col) => (
-                                          <td
-                                            key={col.key}
-                                            className="px-3 py-2.5 text-foreground/80 whitespace-nowrap"
-                                          >
-                                            {String(
-                                              (entry.data as Record<string, unknown>)[col.key] ?? ""
-                                            )}
-                                          </td>
-                                        ))}
+                                        <td className="px-2 py-2.5 text-center text-muted-foreground/30 font-mono text-[10px]">
+                                          {rowIdx + 1}
+                                        </td>
+                                        {cols.map((col) => {
+                                          const cellData = (entry.data as Record<string, unknown>)[col.key];
+                                          const cellStr = cellData != null ? String(cellData) : "";
+                                          const isEditing =
+                                            editingCell?.tabId === tab.id &&
+                                            editingCell?.entryId === entry.id &&
+                                            editingCell?.colKey === col.key;
+
+                                          return (
+                                            <td
+                                              key={col.key}
+                                              className="px-3 py-2.5 whitespace-nowrap cursor-text hover:bg-primary/5 transition-colors"
+                                              onClick={() => {
+                                                if (!isEditing) startEditCell(tab.id, entry.id, col.key, cellStr);
+                                              }}
+                                            >
+                                              {isEditing ? (
+                                                <input
+                                                  autoFocus
+                                                  value={editingValue}
+                                                  onChange={(e) => setEditingValue(e.target.value)}
+                                                  onBlur={commitCellEdit}
+                                                  onKeyDown={(e) => {
+                                                    if (e.key === "Enter") commitCellEdit();
+                                                    if (e.key === "Escape") setEditingCell(null);
+                                                    e.stopPropagation();
+                                                  }}
+                                                  className="w-full bg-transparent outline-none border-b border-primary/60 text-xs text-foreground min-w-[60px]"
+                                                />
+                                              ) : (
+                                                <span className="text-foreground/80 text-xs">
+                                                  {cellStr || (
+                                                    <span className="text-muted-foreground/20 text-[10px]">—</span>
+                                                  )}
+                                                </span>
+                                              )}
+                                            </td>
+                                          );
+                                        })}
+                                        {/* spacer for add-col header button */}
+                                        <td className="w-8" />
                                         <td className="px-2 py-2">
                                           <button
                                             onClick={() => deleteRow(tab.id, entry.id)}
@@ -317,9 +468,19 @@ export default function TablesPage() {
           onAdd={(data) => addRow(addRowTabId, data)}
         />
       )}
+
+      {addColTabId && (
+        <AddColumnDialog
+          open={!!addColTabId}
+          onOpenChange={(open) => { if (!open) setAddColTabId(null); }}
+          onAdd={(label) => addColumn(addColTabId, label)}
+        />
+      )}
     </div>
   );
 }
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function colName(i: number): string {
   if (i < 26) return String.fromCharCode(65 + i);
@@ -356,6 +517,8 @@ function Stepper({
   );
 }
 
+// ─── Dialogs ──────────────────────────────────────────────────────────────────
+
 function CreateTableDialog({
   open,
   onOpenChange,
@@ -370,11 +533,7 @@ function CreateTableDialog({
   const [rowCount, setRowCount] = useState(5);
 
   useEffect(() => {
-    if (open) {
-      setName("");
-      setColCount(3);
-      setRowCount(5);
-    }
+    if (open) { setName(""); setColCount(3); setRowCount(5); }
   }, [open]);
 
   const previewCols = Array.from({ length: colCount }, (_, i) => colName(i));
@@ -410,10 +569,7 @@ function CreateTableDialog({
             </div>
             <div className="flex gap-1.5 flex-wrap">
               {previewCols.map((label) => (
-                <span
-                  key={label}
-                  className="px-2 py-0.5 rounded-md bg-muted/60 text-xs font-mono text-muted-foreground"
-                >
+                <span key={label} className="px-2 py-0.5 rounded-md bg-muted/60 text-xs font-mono text-muted-foreground">
                   {label}
                 </span>
               ))}
@@ -425,11 +581,7 @@ function CreateTableDialog({
             <Stepper value={rowCount} onChange={setRowCount} min={1} max={100} />
           </div>
 
-          <Button
-            className="w-full gradient-primary text-white border-0"
-            disabled={!name.trim()}
-            onClick={handleCreate}
-          >
+          <Button className="w-full gradient-primary text-white border-0" disabled={!name.trim()} onClick={handleCreate}>
             <Check className="h-4 w-4 mr-1.5" />
             Создать {colCount} × {rowCount}
           </Button>
@@ -479,14 +631,59 @@ function AddRowDialog({
               />
             </div>
           ))}
-          <Button
-            className="w-full gradient-primary text-white border-0 mt-2"
-            onClick={() => onAdd(values)}
-          >
+          <Button className="w-full gradient-primary text-white border-0 mt-2" onClick={() => onAdd(values)}>
             <Check className="h-4 w-4 mr-1.5" />
             Добавить
           </Button>
         </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function AddColumnDialog({
+  open,
+  onOpenChange,
+  onAdd,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onAdd: (label: string) => void;
+}) {
+  const [label, setLabel] = useState("");
+
+  useEffect(() => { if (open) setLabel(""); }, [open]);
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!label.trim()) return;
+    onAdd(label.trim());
+    setLabel("");
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-sm mx-4 rounded-2xl">
+        <DialogHeader>
+          <DialogTitle>Новый столбец</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4 pt-1">
+          <Input
+            autoFocus
+            placeholder="Название столбца"
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+          />
+          <div className="flex gap-2">
+            <Button type="button" variant="ghost" className="flex-1" onClick={() => onOpenChange(false)}>
+              Отмена
+            </Button>
+            <Button type="submit" disabled={!label.trim()} className="flex-1 gradient-primary text-white border-0">
+              <Check className="h-4 w-4 mr-1" />
+              Добавить
+            </Button>
+          </div>
+        </form>
       </DialogContent>
     </Dialog>
   );
