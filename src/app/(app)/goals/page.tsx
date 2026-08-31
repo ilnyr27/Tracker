@@ -11,6 +11,8 @@ import {
   Archive,
   ListTodo,
   Pencil,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -640,14 +642,6 @@ function GoalCard({
           >
             {goal.title}
           </h3>
-          {onRenameStart && (
-            <button
-              onClick={(e) => { e.stopPropagation(); onRenameStart(goal); }}
-              className="opacity-0 group-hover:opacity-100 p-0.5 rounded transition-opacity text-muted-foreground/40 hover:text-muted-foreground shrink-0 mt-0.5"
-            >
-              <Pencil className="h-2.5 w-2.5" />
-            </button>
-          )}
         </div>
       )}
 
@@ -668,21 +662,42 @@ function GoalCard({
         </div>
       )}
 
-      {/* Compact action buttons */}
+      {/* Action buttons: ← rename → delete */}
       <div className="flex items-center gap-0.5 pt-1.5 border-t border-border/20">
-        {moveTargets.map((target) => {
-          const TIcon = target.icon;
+        {(() => {
+          const colIndex = COLUMNS.findIndex((c) => c.id === currentColumn);
+          const prevCol = colIndex > 0 ? COLUMNS[colIndex - 1] : null;
+          const nextCol = colIndex < COLUMNS.length - 1 ? COLUMNS[colIndex + 1] : null;
           return (
-            <button
-              key={target.id}
-              onClick={(e) => { e.stopPropagation(); onMove(goal.id, target.id); }}
-              className={`p-1 rounded-md transition-colors hover:bg-accent/60 ${target.color}`}
-              title={target.label}
-            >
-              <TIcon className="h-3 w-3" />
-            </button>
+            <>
+              <button
+                onClick={(e) => { e.stopPropagation(); prevCol && onMove(goal.id, prevCol.id); }}
+                disabled={!prevCol}
+                className={`p-1 rounded-md transition-colors ${prevCol ? "text-muted-foreground/50 hover:bg-accent/60 hover:text-foreground" : "text-muted-foreground/15 cursor-default"}`}
+                title={prevCol?.label}
+              >
+                <ChevronLeft className="h-3.5 w-3.5" />
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); nextCol && onMove(goal.id, nextCol.id); }}
+                disabled={!nextCol}
+                className={`p-1 rounded-md transition-colors ${nextCol ? "text-muted-foreground/50 hover:bg-accent/60 hover:text-foreground" : "text-muted-foreground/15 cursor-default"}`}
+                title={nextCol?.label}
+              >
+                <ChevronRight className="h-3.5 w-3.5" />
+              </button>
+              {onRenameStart && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); onRenameStart(goal); }}
+                  className="p-1 rounded-md text-muted-foreground/40 hover:text-foreground hover:bg-accent/60 transition-colors"
+                  title="Переименовать"
+                >
+                  <Pencil className="h-3 w-3" />
+                </button>
+              )}
+            </>
           );
-        })}
+        })()}
         <button
           onClick={(e) => { e.stopPropagation(); onDelete(goal.id); }}
           className="ml-auto p-1 rounded-md text-muted-foreground/30 hover:text-destructive hover:bg-destructive/10 transition-colors"

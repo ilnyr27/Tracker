@@ -311,11 +311,11 @@ export default function MainPage() {
         .not("goal_id", "is", null),
       supabase
         .from("tasks")
-        .select("scheduled_date")
-        .eq("is_done", true)
+        .select("scheduled_date, is_done")
         .not("scheduled_date", "is", null)
+        .not("goal_id", "is", null)
         .order("scheduled_date", { ascending: false })
-        .limit(90),
+        .limit(500),
     ]);
 
     if (catRes.data) setCategories(catRes.data);
@@ -328,14 +328,26 @@ export default function MainPage() {
     }
 
     if (streakRes.data) {
-      const doneDates = new Set(streakRes.data.map((t) => t.scheduled_date as string));
+      // Build per-date map: did this day have any tasks? any done?
+      const dateMap = new Map<string, { hasDone: boolean }>();
+      for (const task of streakRes.data) {
+        const d = task.scheduled_date as string;
+        const existing = dateMap.get(d) ?? { hasDone: false };
+        if (task.is_done) existing.hasDone = true;
+        dateMap.set(d, existing);
+      }
+
       let count = 0;
       for (let i = 0; i < 90; i++) {
         const d = format(subDays(new Date(), i), "yyyy-MM-dd");
-        if (doneDates.has(d)) {
+        const dayData = dateMap.get(d);
+        if (!dayData) continue; // no tasks this day — transparent, don't break
+        if (dayData.hasDone) {
           count++;
+        } else if (i === 0) {
+          continue; // today's tasks not done yet — day in progress, don't break
         } else {
-          break;
+          break; // past day had tasks but none done — streak broken
         }
       }
       setStreak(count);
