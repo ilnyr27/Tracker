@@ -72,7 +72,7 @@ export default function TablesPage() {
     }
   }
 
-  async function createTab(name: string, columns: ColDef[]) {
+  async function createTab(name: string, columns: ColDef[], rowCount: number) {
     const supabase = createClient();
     const { data: userData } = await supabase.auth.getUser();
     if (!userData.user) return;
@@ -91,7 +91,18 @@ export default function TablesPage() {
 
     if (data) {
       setTabs((prev) => [...prev, data]);
-      setTabEntries((prev) => new Map(prev).set(data.id, []));
+      if (rowCount > 0) {
+        const emptyRows = Array.from({ length: rowCount }, (_, i) => ({
+          tab_id: data.id,
+          user_id: userData.user.id,
+          data: {},
+          sort_order: i,
+        }));
+        const { data: rowData } = await supabase.from("tab_entries").insert(emptyRows).select();
+        setTabEntries((prev) => new Map(prev).set(data.id, rowData ?? []));
+      } else {
+        setTabEntries((prev) => new Map(prev).set(data.id, []));
+      }
     }
     setCreateOpen(false);
   }
@@ -210,6 +221,7 @@ export default function TablesPage() {
                               <table className="w-full text-xs min-w-max">
                                 <thead>
                                   <tr className="border-b border-border/30 bg-muted/30">
+                                    <th className="px-2 py-2 text-center font-medium text-muted-foreground/30 w-8">#</th>
                                     {cols.map((col) => (
                                       <th
                                         key={col.key}
@@ -225,18 +237,19 @@ export default function TablesPage() {
                                   {entries.length === 0 ? (
                                     <tr>
                                       <td
-                                        colSpan={cols.length + 1}
+                                        colSpan={cols.length + 2}
                                         className="px-3 py-6 text-center text-[11px] text-muted-foreground/30"
                                       >
                                         Строк пока нет
                                       </td>
                                     </tr>
                                   ) : (
-                                    entries.map((entry) => (
+                                    entries.map((entry, rowIdx) => (
                                       <tr
                                         key={entry.id}
                                         className="border-b border-border/20 hover:bg-accent/20 transition-colors"
                                       >
+                                        <td className="px-2 py-2.5 text-center text-muted-foreground/30 font-mono text-[10px]">{rowIdx + 1}</td>
                                         {cols.map((col) => (
                                           <td
                                             key={col.key}
@@ -293,7 +306,7 @@ export default function TablesPage() {
       <CreateTableDialog
         open={createOpen}
         onOpenChange={setCreateOpen}
-        onCreate={createTab}
+        onCreate={(name, cols, rows) => createTab(name, cols, rows)}
       />
 
       {addRowTabId && addRowCols.length > 0 && (
@@ -308,6 +321,41 @@ export default function TablesPage() {
   );
 }
 
+function colName(i: number): string {
+  if (i < 26) return String.fromCharCode(65 + i);
+  return String.fromCharCode(64 + Math.floor(i / 26)) + String.fromCharCode(65 + (i % 26));
+}
+
+function Stepper({
+  value,
+  onChange,
+  min,
+  max,
+}: {
+  value: number;
+  onChange: (v: number) => void;
+  min: number;
+  max: number;
+}) {
+  return (
+    <div className="flex items-center gap-3">
+      <button
+        onClick={() => onChange(Math.max(min, value - 1))}
+        className="h-8 w-8 rounded-lg border border-border/50 text-muted-foreground hover:bg-accent/50 transition-colors text-lg font-medium"
+      >
+        −
+      </button>
+      <span className="w-6 text-center font-semibold text-sm">{value}</span>
+      <button
+        onClick={() => onChange(Math.min(max, value + 1))}
+        className="h-8 w-8 rounded-lg border border-border/50 text-muted-foreground hover:bg-accent/50 transition-colors text-lg font-medium"
+      >
+        +
+      </button>
+    </div>
+  );
+}
+
 function CreateTableDialog({
   open,
   onOpenChange,
@@ -315,28 +363,30 @@ function CreateTableDialog({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onCreate: (name: string, columns: ColDef[]) => void;
+  onCreate: (name: string, columns: ColDef[], rowCount: number) => void;
 }) {
   const [name, setName] = useState("");
-  const [columns, setColumns] = useState<string[]>([""]);
+  const [colCount, setColCount] = useState(3);
+  const [rowCount, setRowCount] = useState(5);
 
   useEffect(() => {
     if (open) {
       setName("");
-      setColumns([""]);
+      setColCount(3);
+      setRowCount(5);
     }
   }, [open]);
 
+  const previewCols = Array.from({ length: colCount }, (_, i) => colName(i));
+
   function handleCreate() {
     if (!name.trim()) return;
-    const cols = columns
-      .filter((l) => l.trim())
-      .map((l, i) => ({ key: `col_${i}_${Date.now()}`, label: l.trim() }));
-    if (cols.length === 0) return;
-    onCreate(name, cols);
+    const cols = previewCols.map((label, i) => ({
+      key: `col_${label}_${Date.now() + i}`,
+      label,
+    }));
+    onCreate(name, cols, rowCount);
   }
-
-  const canCreate = name.trim() && columns.some((c) => c.trim());
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -344,7 +394,7 @@ function CreateTableDialog({
         <DialogHeader>
           <DialogTitle>Новая таблица</DialogTitle>
         </DialogHeader>
-        <div className="space-y-4 pt-1">
+        <div className="space-y-5 pt-1">
           <Input
             autoFocus
             placeholder="Название таблицы"
@@ -354,43 +404,34 @@ function CreateTableDialog({
           />
 
           <div className="space-y-2">
-            <p className="text-xs font-medium text-muted-foreground/60">Столбцы</p>
-            {columns.map((label, i) => (
-              <div key={i} className="flex gap-2 items-center">
-                <Input
-                  placeholder={`Столбец ${i + 1}`}
-                  value={label}
-                  onChange={(e) =>
-                    setColumns((prev) => prev.map((v, idx) => idx === i ? e.target.value : v))
-                  }
-                  className="h-8 text-sm"
-                />
-                {columns.length > 1 && (
-                  <button
-                    onClick={() => setColumns((prev) => prev.filter((_, idx) => idx !== i))}
-                    className="p-1.5 rounded-lg text-muted-foreground/40 hover:text-destructive transition-colors shrink-0"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                )}
-              </div>
-            ))}
-            <button
-              onClick={() => setColumns((prev) => [...prev, ""])}
-              className="flex items-center gap-1.5 text-xs text-muted-foreground/50 hover:text-primary transition-colors py-1"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              Добавить столбец
-            </button>
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-medium text-muted-foreground/60">Столбцы</p>
+              <Stepper value={colCount} onChange={setColCount} min={1} max={26} />
+            </div>
+            <div className="flex gap-1.5 flex-wrap">
+              {previewCols.map((label) => (
+                <span
+                  key={label}
+                  className="px-2 py-0.5 rounded-md bg-muted/60 text-xs font-mono text-muted-foreground"
+                >
+                  {label}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-medium text-muted-foreground/60">Строки</p>
+            <Stepper value={rowCount} onChange={setRowCount} min={1} max={100} />
           </div>
 
           <Button
             className="w-full gradient-primary text-white border-0"
-            disabled={!canCreate}
+            disabled={!name.trim()}
             onClick={handleCreate}
           >
             <Check className="h-4 w-4 mr-1.5" />
-            Создать
+            Создать {colCount} × {rowCount}
           </Button>
         </div>
       </DialogContent>

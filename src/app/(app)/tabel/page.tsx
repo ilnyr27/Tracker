@@ -347,7 +347,7 @@ export default function MatrixPage() {
   }, [activeCats, goalsByCategory, days, taskMap, templates]);
 
   return (
-    <div className="p-4 pb-24 md:pb-4">
+    <div className="p-4 pb-24 md:pb-4 overflow-x-hidden">
       {/* Header */}
       <div className="flex items-center justify-between mb-1">
         <div>
@@ -439,7 +439,7 @@ export default function MatrixPage() {
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className="rounded-2xl border border-border/30 overflow-auto bg-card"
+          className="rounded-2xl border border-border/30 overflow-auto bg-card max-w-full"
         >
           <table className="text-xs border-collapse">
             <thead className="sticky top-0 z-10 bg-card">

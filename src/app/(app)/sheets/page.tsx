@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import {
   Plus,
@@ -33,6 +33,7 @@ export default function SheetsPage() {
 }
 
 function SheetsPageInner() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const urlTabId = searchParams.get("tab");
 
@@ -41,6 +42,28 @@ function SheetsPageInner() {
   const [loading, setLoading] = useState(true);
   const [expandedTabId, setExpandedTabId] = useState<string | null>(urlTabId);
   const [createOpen, setCreateOpen] = useState(false);
+
+  useEffect(() => {
+    let startX = 0;
+    let startY = 0;
+    const onStart = (e: TouchEvent) => {
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+    };
+    const onEnd = (e: TouchEvent) => {
+      const dx = e.changedTouches[0].clientX - startX;
+      const dy = e.changedTouches[0].clientY - startY;
+      if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) && dx > 0) {
+        router.push("/journal");
+      }
+    };
+    document.addEventListener("touchstart", onStart, { passive: true });
+    document.addEventListener("touchend", onEnd, { passive: true });
+    return () => {
+      document.removeEventListener("touchstart", onStart);
+      document.removeEventListener("touchend", onEnd);
+    };
+  }, [router]);
 
   const loadTabs = useCallback(async () => {
     setLoading(true);

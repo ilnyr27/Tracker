@@ -77,6 +77,7 @@ export default function GoalsPage() {
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [overColumn, setOverColumn] = useState<ColumnId | null>(null);
   const [mobileActiveColumn, setMobileActiveColumn] = useState<ColumnId>("active");
+  const colContentRef = useRef<HTMLDivElement>(null);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -145,6 +146,38 @@ export default function GoalsPage() {
     setEditingGoal(goal);
     setDialogOpen(true);
   }
+
+  // ── Mobile column swipe ──
+  const COL_ORDER: ColumnId[] = ["deferred", "active", "completed", "cancelled"];
+
+  useEffect(() => {
+    const el = colContentRef.current;
+    if (!el) return;
+    let startX = 0;
+    let startY = 0;
+    const onStart = (e: TouchEvent) => {
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+    };
+    const onEnd = (e: TouchEvent) => {
+      const dx = e.changedTouches[0].clientX - startX;
+      const dy = e.changedTouches[0].clientY - startY;
+      if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) {
+        setMobileActiveColumn((prev) => {
+          const idx = COL_ORDER.indexOf(prev);
+          if (dx < 0 && idx < COL_ORDER.length - 1) return COL_ORDER[idx + 1];
+          if (dx > 0 && idx > 0) return COL_ORDER[idx - 1];
+          return prev;
+        });
+      }
+    };
+    el.addEventListener("touchstart", onStart, { passive: true });
+    el.addEventListener("touchend", onEnd, { passive: true });
+    return () => {
+      el.removeEventListener("touchstart", onStart);
+      el.removeEventListener("touchend", onEnd);
+    };
+  }, [loading]); // re-attach after loading (element appears in DOM)
 
   // ── Native DnD handlers ──
   function handleDragStart(e: React.DragEvent, goalId: string) {
@@ -368,7 +401,7 @@ export default function GoalsPage() {
             </div>
 
             {/* Active column cards */}
-            <div className="flex-1 overflow-y-auto px-4 pb-28">
+            <div ref={colContentRef} className="flex-1 overflow-y-auto px-4 pb-28">
               {(() => {
                 const col = COLUMNS.find((c) => c.id === mobileActiveColumn)!;
                 const colGoals = goalsByColumn[mobileActiveColumn] || [];
@@ -378,6 +411,15 @@ export default function GoalsPage() {
                       <col.icon className={`h-3.5 w-3.5 ${col.color}`} />
                       <span className="text-xs font-semibold">{col.label}</span>
                       <span className="text-[10px] text-muted-foreground/50 ml-auto">{colGoals.length}</span>
+                      {/* swipe hint arrows */}
+                      <div className="flex items-center gap-0.5 text-muted-foreground/20">
+                        {COL_ORDER.indexOf(mobileActiveColumn) > 0 && (
+                          <ChevronLeft className="h-3.5 w-3.5" />
+                        )}
+                        {COL_ORDER.indexOf(mobileActiveColumn) < COL_ORDER.length - 1 && (
+                          <ChevronRight className="h-3.5 w-3.5" />
+                        )}
+                      </div>
                     </div>
                     <div className="space-y-2">
                       {colGoals.length === 0 ? (
