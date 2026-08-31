@@ -347,7 +347,7 @@ export default function MatrixPage() {
   }, [activeCats, goalsByCategory, days, taskMap, templates]);
 
   return (
-    <div className="p-4 pb-24 md:pb-4 overflow-x-hidden">
+    <div className="p-4 pb-24 md:pb-4 overflow-x-hidden" style={{ touchAction: 'pan-y' }}>
       {/* Header */}
       <div className="flex items-center justify-between mb-1">
         <div>

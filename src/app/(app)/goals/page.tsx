@@ -253,9 +253,9 @@ export default function GoalsPage() {
   const completedGoals = goals.filter((g) => g.status === "completed").length;
 
   return (
-    <div className="flex flex-col h-[calc(100vh-80px)] md:h-screen">
+    <div className="flex flex-col h-[calc(100vh-80px)] md:h-screen overflow-x-hidden">
       {/* Header */}
-      <div className="px-4 py-4 md:px-6 border-b border-border/50 bg-background/80 backdrop-blur-sm">
+      <div className="px-4 py-4 md:px-6 border-b border-border/50 bg-background/80 backdrop-blur-sm overflow-x-hidden">
         <div className="max-w-7xl mx-auto">
           <div className="mb-3">
             <h1 className="text-xl font-bold gradient-text tracking-tight">Канбан</h1>
@@ -292,7 +292,7 @@ export default function GoalsPage() {
 
           {/* Category filter (only in goals mode) */}
           {kanbanMode === "goals" && categories.length > 0 && (
-            <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1">
+            <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none" style={{ touchAction: 'pan-x' }}>
               <button
                 onClick={() => setFilterCategory("all")}
                 className={`shrink-0 px-2.5 py-1 rounded-full text-[11px] font-medium transition-all ${
@@ -371,7 +371,7 @@ export default function GoalsPage() {
           {/* Mobile: status filter pills + vertical list */}
           <div className="md:hidden flex flex-col h-full">
             {/* Filter pills */}
-            <div className="px-4 pt-3 pb-2 flex gap-2 overflow-x-auto shrink-0 scrollbar-none">
+            <div className="px-4 pt-3 pb-2 flex gap-2 overflow-x-auto shrink-0 scrollbar-none" style={{ touchAction: 'pan-x' }}>
               {COLUMNS.map((col) => {
                 const ColIcon = col.icon;
                 const count = (goalsByColumn[col.id] || []).length;
