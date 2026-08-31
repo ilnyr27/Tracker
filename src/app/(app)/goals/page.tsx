@@ -255,7 +255,7 @@ export default function GoalsPage() {
   return (
     <div className="flex flex-col h-[calc(100vh-80px)] md:h-screen overflow-x-hidden">
       {/* Header */}
-      <div className="px-4 py-4 md:px-6 border-b border-border/50 bg-background/80 backdrop-blur-sm overflow-x-hidden">
+      <div className="px-4 py-4 md:px-6 border-b border-border/50 bg-background/80 backdrop-blur-sm">
         <div className="max-w-7xl mx-auto">
           <div className="mb-3">
             <h1 className="text-xl font-bold gradient-text tracking-tight">Канбан</h1>

@@ -60,7 +60,7 @@ export default function JournalPage() {
   }, []);
 
   return (
-    <div className="mx-auto max-w-2xl p-4 flex flex-col h-[calc(100vh-5rem)] md:h-screen overflow-x-hidden">
+    <div className="mx-auto max-w-2xl p-4 flex flex-col h-[calc(100vh-5rem)] md:h-screen overflow-x-hidden" style={{ touchAction: 'pan-y' }}>
       {/* Header */}
       <div className="mb-3 shrink-0">
         <h1 className="text-xl font-bold gradient-text">Журнал</h1>

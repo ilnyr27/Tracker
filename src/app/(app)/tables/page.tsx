@@ -23,6 +23,48 @@ function getSchema(tab: CustomTab): ColDef[] {
   return s?.columns ?? [];
 }
 
+function evalFormula(formula: string, entries: TabEntry[], cols: ColDef[]): string {
+  if (!formula.startsWith("=")) return formula;
+  const expr = formula.slice(1).trim().toUpperCase();
+
+  const colByLabel = (label: string) => cols.find((c) => c.label.toUpperCase() === label.trim());
+
+  const getColValues = (labels: string[]): number[] => {
+    const values: number[] = [];
+    for (const label of labels) {
+      const col = colByLabel(label);
+      if (!col) continue;
+      for (const entry of entries) {
+        const raw = (entry.data as Record<string, unknown>)[col.key];
+        const v = parseFloat(String(raw ?? ""));
+        if (!isNaN(v)) values.push(v);
+      }
+    }
+    return values;
+  };
+
+  const m = expr.match(/^(SUM|AVG|AVERAGE|MAX|MIN|COUNT)\(([^)]*)\)$/);
+  if (m) {
+    const [, func, argsStr] = m;
+    const args = argsStr.split(",").map((a) => a.trim()).filter(Boolean);
+    const values = getColValues(args);
+    if (values.length === 0) return "0";
+    switch (func) {
+      case "SUM": return String(values.reduce((a, b) => a + b, 0));
+      case "AVG":
+      case "AVERAGE": return String(+(values.reduce((a, b) => a + b, 0) / values.length).toFixed(2));
+      case "MAX": return String(Math.max(...values));
+      case "MIN": return String(Math.min(...values));
+      case "COUNT": return String(values.length);
+    }
+  }
+
+  // Plain number or unknown — return as-is without "="
+  const num = parseFloat(expr);
+  if (!isNaN(num)) return String(num);
+  return `#ERR`;
+}
+
 function pluralCols(n: number) {
   if (n % 10 === 1 && n % 100 !== 11) return "столбец";
   if (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20)) return "столбца";
@@ -400,10 +442,11 @@ export default function TablesPage() {
                                                   className="w-full bg-transparent outline-none border-b border-primary/60 text-xs text-foreground min-w-[60px]"
                                                 />
                                               ) : (
-                                                <span className="text-foreground/80 text-xs">
-                                                  {cellStr || (
-                                                    <span className="text-muted-foreground/20 text-[10px]">—</span>
-                                                  )}
+                                                <span className={`text-xs ${cellStr.startsWith("=") ? "text-primary/80 font-mono" : "text-foreground/80"}`}>
+                                                  {cellStr.startsWith("=")
+                                                    ? evalFormula(cellStr, entries, cols)
+                                                    : cellStr || <span className="text-muted-foreground/20 text-[10px]">—</span>
+                                                  }
                                                 </span>
                                               )}
                                             </td>
