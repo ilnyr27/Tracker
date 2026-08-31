@@ -423,7 +423,7 @@ export default function TablesPage() {
                                           return (
                                             <td
                                               key={col.key}
-                                              className="px-3 py-2.5 whitespace-nowrap cursor-text hover:bg-primary/5 transition-colors"
+                                              className={`whitespace-nowrap cursor-text hover:bg-primary/5 transition-colors ${isEditing ? 'px-1 py-0.5' : 'px-3 py-2.5'}`}
                                               onClick={() => {
                                                 if (!isEditing) startEditCell(tab.id, entry.id, col.key, cellStr);
                                               }}
@@ -439,7 +439,7 @@ export default function TablesPage() {
                                                     if (e.key === "Escape") setEditingCell(null);
                                                     e.stopPropagation();
                                                   }}
-                                                  className="w-full bg-transparent outline-none border-b border-primary/60 text-xs text-foreground min-w-[60px]"
+                                                  className="w-full bg-primary/5 rounded px-2 py-1 outline-none border border-primary/40 text-xs text-foreground min-w-[60px]"
                                                 />
                                               ) : (
                                                 <span className={`text-xs ${cellStr.startsWith("=") ? "text-primary/80 font-mono" : "text-foreground/80"}`}>

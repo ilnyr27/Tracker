@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
+import { motion } from "motion/react";
 import { createClient } from "@/lib/supabase/client";
 import {
   Target,
@@ -73,11 +74,11 @@ export default function GoalsPage() {
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [filterCategory, setFilterCategory] = useState<string>("all");
-  const [kanbanMode, setKanbanMode] = useState<KanbanMode>("tasks");
+  const [kanbanMode, setKanbanMode] = useState<KanbanMode>("goals");
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [overColumn, setOverColumn] = useState<ColumnId | null>(null);
   const [mobileActiveColumn, setMobileActiveColumn] = useState<ColumnId>("active");
-  const colContentRef = useRef<HTMLDivElement>(null);
+  const slideContainerRef = useRef<HTMLDivElement>(null);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -151,7 +152,7 @@ export default function GoalsPage() {
   const COL_ORDER: ColumnId[] = ["deferred", "active", "completed", "cancelled"];
 
   useEffect(() => {
-    const el = colContentRef.current;
+    const el = slideContainerRef.current;
     if (!el) return;
     let startX = 0;
     let startY = 0;
@@ -295,7 +296,7 @@ export default function GoalsPage() {
             <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none" style={{ touchAction: 'pan-x' }}>
               <button
                 onClick={() => setFilterCategory("all")}
-                className={`shrink-0 px-2.5 py-1 rounded-full text-[11px] font-medium transition-all ${
+                className={`shrink-0 px-4 py-1.5 rounded-full text-xs font-medium transition-all ${
                   filterCategory === "all"
                     ? "bg-primary text-primary-foreground"
                     : "bg-muted text-muted-foreground hover:bg-muted/80"
@@ -307,7 +308,7 @@ export default function GoalsPage() {
                 <button
                   key={cat.id}
                   onClick={() => setFilterCategory(cat.id)}
-                  className={`shrink-0 px-2.5 py-1 rounded-full text-[11px] font-medium transition-all ${
+                  className={`shrink-0 px-4 py-1.5 rounded-full text-xs font-medium transition-all ${
                     filterCategory === cat.id
                       ? "text-white"
                       : "bg-muted text-muted-foreground hover:bg-muted/80"
@@ -368,9 +369,9 @@ export default function GoalsPage() {
             ))}
           </div>
 
-          {/* Mobile: status filter pills + vertical list */}
+          {/* Mobile: status filter pills + sliding columns */}
           <div className="md:hidden flex flex-col h-full">
-            {/* Filter pills */}
+            {/* Column pills */}
             <div className="px-4 pt-3 pb-2 flex gap-2 overflow-x-auto shrink-0 scrollbar-none" style={{ touchAction: 'pan-x' }}>
               {COLUMNS.map((col) => {
                 const ColIcon = col.icon;
@@ -380,16 +381,14 @@ export default function GoalsPage() {
                   <button
                     key={col.id}
                     onClick={() => setMobileActiveColumn(col.id)}
-                    className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
-                      isActive
-                        ? MOBILE_COL_COLORS[col.id].pill
-                        : "bg-muted text-muted-foreground"
+                    className={`shrink-0 flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                      isActive ? MOBILE_COL_COLORS[col.id].pill : "bg-muted text-muted-foreground"
                     }`}
                   >
-                    <ColIcon className="h-3 w-3" />
+                    <ColIcon className="h-3.5 w-3.5" />
                     {col.label}
                     {count > 0 && (
-                      <span className={`text-[10px] rounded-full px-1 min-w-[16px] text-center leading-none py-0.5 ${
+                      <span className={`text-[11px] rounded-full px-1.5 min-w-[20px] text-center leading-none py-0.5 ${
                         isActive ? "bg-white/25" : "bg-foreground/10"
                       }`}>
                         {count}
@@ -400,67 +399,67 @@ export default function GoalsPage() {
               })}
             </div>
 
-            {/* Active column cards */}
-            <div ref={colContentRef} className="flex-1 overflow-y-auto px-4 pb-28">
-              {(() => {
-                const col = COLUMNS.find((c) => c.id === mobileActiveColumn)!;
-                const colGoals = goalsByColumn[mobileActiveColumn] || [];
-                return (
-                  <div className={`min-h-32 rounded-2xl border p-3 ${MOBILE_COL_COLORS[mobileActiveColumn].container}`}>
-                    <div className="flex items-center gap-1.5 mb-3">
-                      <col.icon className={`h-3.5 w-3.5 ${col.color}`} />
-                      <span className="text-xs font-semibold">{col.label}</span>
-                      <span className="text-[10px] text-muted-foreground/50 ml-auto">{colGoals.length}</span>
-                      {/* swipe hint arrows */}
-                      <div className="flex items-center gap-0.5 text-muted-foreground/20">
-                        {COL_ORDER.indexOf(mobileActiveColumn) > 0 && (
-                          <ChevronLeft className="h-3.5 w-3.5" />
-                        )}
-                        {COL_ORDER.indexOf(mobileActiveColumn) < COL_ORDER.length - 1 && (
-                          <ChevronRight className="h-3.5 w-3.5" />
+            {/* Sliding columns — spring animation like Journal */}
+            <div ref={slideContainerRef} className="flex-1 overflow-hidden" style={{ touchAction: 'pan-y' }}>
+              <motion.div
+                className="flex h-full"
+                style={{ width: '400%' }}
+                animate={{ x: `-${25 * COL_ORDER.indexOf(mobileActiveColumn)}%` }}
+                transition={{ type: 'spring', stiffness: 400, damping: 38, mass: 0.8 }}
+              >
+                {COL_ORDER.map((colId) => {
+                  const col = COLUMNS.find((c) => c.id === colId)!;
+                  const colGoals = goalsByColumn[colId] || [];
+                  return (
+                    <div key={colId} className="h-full overflow-y-auto px-4 pb-28" style={{ width: '25%' }}>
+                      <div className={`min-h-32 rounded-2xl border p-3 ${MOBILE_COL_COLORS[colId].container}`}>
+                        <div className="flex items-center gap-1.5 mb-3">
+                          <col.icon className={`h-3.5 w-3.5 ${col.color}`} />
+                          <span className="text-sm font-semibold">{col.label}</span>
+                          <span className="text-xs text-muted-foreground/50 ml-auto">{colGoals.length}</span>
+                        </div>
+                        <div className="space-y-2">
+                          {colGoals.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center py-10 text-center">
+                              <col.icon className="h-6 w-6 text-muted-foreground/15 mb-1.5" />
+                              <p className="text-xs text-muted-foreground/30">{col.emptyText}</p>
+                            </div>
+                          ) : (
+                            colGoals.map((goal) => (
+                              <GoalCard
+                                key={goal.id}
+                                goal={goal}
+                                catMap={catMap}
+                                currentColumn={colId}
+                                onMove={moveGoal}
+                                onEdit={openEdit}
+                                onDelete={deleteGoal}
+                                onDragStart={handleDragStart}
+                                onDragEnd={handleDragEnd}
+                                renamingId={renamingId}
+                                renameValue={renameValue}
+                                onRenameStart={(g) => { setRenamingId(g.id); setRenameValue(g.title); }}
+                                onRenameChange={setRenameValue}
+                                onRenameSave={saveRename}
+                                onRenameCancel={() => setRenamingId(null)}
+                              />
+                            ))
+                          )}
+                        </div>
+                        {colId !== "cancelled" && (
+                          <button
+                            onClick={() => openCreateInColumn(colId)}
+                            className="mt-2 flex items-center gap-1.5 px-2 py-1.5 w-full rounded-xl text-xs text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-colors"
+                          >
+                            <Plus className="h-3 w-3" />
+                            Добавить
+                          </button>
                         )}
                       </div>
                     </div>
-                    <div className="space-y-2">
-                      {colGoals.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center py-10 text-center">
-                          <col.icon className="h-6 w-6 text-muted-foreground/15 mb-1.5" />
-                          <p className="text-[11px] text-muted-foreground/30">{col.emptyText}</p>
-                        </div>
-                      ) : (
-                        colGoals.map((goal) => (
-                          <GoalCard
-                            key={goal.id}
-                            goal={goal}
-                            catMap={catMap}
-                            currentColumn={mobileActiveColumn}
-                            onMove={moveGoal}
-                            onEdit={openEdit}
-                            onDelete={deleteGoal}
-                            onDragStart={handleDragStart}
-                            onDragEnd={handleDragEnd}
-                            renamingId={renamingId}
-                            renameValue={renameValue}
-                            onRenameStart={(g) => { setRenamingId(g.id); setRenameValue(g.title); }}
-                            onRenameChange={setRenameValue}
-                            onRenameSave={saveRename}
-                            onRenameCancel={() => setRenamingId(null)}
-                          />
-                        ))
-                      )}
-                    </div>
-                    {mobileActiveColumn !== "cancelled" && (
-                      <button
-                        onClick={() => openCreateInColumn(mobileActiveColumn)}
-                        className="mt-2 flex items-center gap-1.5 px-2 py-1.5 w-full rounded-xl text-[11px] text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-colors"
-                      >
-                        <Plus className="h-3 w-3" />
-                        Добавить
-                      </button>
-                    )}
-                  </div>
-                );
-              })()}
+                  );
+                })}
+              </motion.div>
             </div>
           </div>
         </div>

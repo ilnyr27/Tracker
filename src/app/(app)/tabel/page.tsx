@@ -491,7 +491,7 @@ export default function MatrixPage() {
                     className="border-b border-border/15 hover:bg-accent/10 transition-colors"
                   >
                     {/* Category + Goal name */}
-                    <td className="px-3 py-2.5 sticky left-0 bg-card z-10">
+                    <td className="px-3 py-2.5">
                       <div className="flex items-center gap-2">
                         <div
                           className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-sm"
