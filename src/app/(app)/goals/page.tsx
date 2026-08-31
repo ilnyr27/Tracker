@@ -585,14 +585,17 @@ function GoalCard({
   const isCompleted = goal.status === "completed";
   const isArchived = goal.status === "cancelled";
   const isRenaming = renamingId === goal.id;
-  const moveTargets = COLUMNS.filter((c) => c.id !== currentColumn);
+
+  const colIndex = COLUMNS.findIndex((c) => c.id === currentColumn);
+  const prevCol = colIndex > 0 ? COLUMNS[colIndex - 1] : null;
+  const nextCol = colIndex < COLUMNS.length - 1 ? COLUMNS[colIndex + 1] : null;
 
   return (
     <div
       draggable={!isRenaming}
       onDragStart={(e) => !isRenaming && onDragStart(e, goal.id)}
       onDragEnd={onDragEnd}
-      className={`group rounded-xl border bg-card p-3 cursor-grab active:cursor-grabbing transition-shadow hover:shadow-md ${
+      className={`group rounded-xl border bg-card overflow-hidden transition-shadow hover:shadow-md ${
         isCompleted
           ? "border-green-500/20 opacity-80"
           : isArchived
@@ -600,112 +603,111 @@ function GoalCard({
             : "border-border/40 hover:border-border/60"
       }`}
     >
-      {/* Top row */}
-      <div className="flex items-center gap-1.5 mb-1.5">
-        {cat && (
-          <div
-            className="h-1.5 w-1.5 rounded-full shrink-0"
-            style={{ backgroundColor: cat.color || "#666" }}
-          />
-        )}
-        {cat && (
-          <span className="text-[10px] text-muted-foreground truncate">
-            {cat.name}
-          </span>
-        )}
-        <Badge variant="outline" className="text-[9px] px-1 py-0 ml-auto shrink-0 leading-tight">
-          {LEVEL_LABELS[goal.level]}
-        </Badge>
-      </div>
-
-      {/* Title — inline rename or static */}
-      {isRenaming ? (
-        <input
-          autoFocus
-          value={renameValue ?? ""}
-          onChange={(e) => onRenameChange?.(e.target.value)}
-          onBlur={() => onRenameSave?.(goal.id, renameValue ?? "")}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") onRenameSave?.(goal.id, renameValue ?? "");
-            if (e.key === "Escape") onRenameCancel?.();
-          }}
-          className="text-[13px] font-medium w-full bg-input/50 border border-border/50 rounded-lg px-2 py-1 mb-1 outline-none focus:ring-1 focus:ring-primary/50"
-          onClick={(e) => e.stopPropagation()}
-        />
-      ) : (
-        <div className="flex items-start gap-1 mb-1">
-          <h3
-            className={`flex-1 text-[13px] font-medium leading-snug cursor-pointer hover:text-primary transition-colors ${
-              isCompleted ? "line-through text-muted-foreground/60" : ""
-            }`}
-            onClick={() => onEdit(goal)}
-          >
-            {goal.title}
-          </h3>
-        </div>
-      )}
-
-      {/* Description */}
-      {goal.description && (
-        <p className="text-[10px] text-muted-foreground/50 line-clamp-2 mb-2">
-          {goal.description}
-        </p>
-      )}
-
-      {/* Date */}
-      {(goal.target_date || goal.completed_at) && (
-        <div className="flex items-center gap-1 text-[10px] text-muted-foreground/40 mb-2">
-          <Clock className="h-2.5 w-2.5" />
-          {goal.completed_at
-            ? `${new Date(goal.completed_at).toLocaleDateString("ru-RU")}`
-            : `до ${new Date(goal.target_date!).toLocaleDateString("ru-RU")}`}
-        </div>
-      )}
-
-      {/* Action buttons: ← rename → delete */}
-      <div className="flex items-center gap-0.5 pt-1.5 border-t border-border/20">
-        {(() => {
-          const colIndex = COLUMNS.findIndex((c) => c.id === currentColumn);
-          const prevCol = colIndex > 0 ? COLUMNS[colIndex - 1] : null;
-          const nextCol = colIndex < COLUMNS.length - 1 ? COLUMNS[colIndex + 1] : null;
-          return (
-            <>
-              <button
-                onClick={(e) => { e.stopPropagation(); prevCol && onMove(goal.id, prevCol.id); }}
-                disabled={!prevCol}
-                className={`p-1 rounded-md transition-colors ${prevCol ? "text-muted-foreground/50 hover:bg-accent/60 hover:text-foreground" : "text-muted-foreground/15 cursor-default"}`}
-                title={prevCol?.label}
-              >
-                <ChevronLeft className="h-3.5 w-3.5" />
-              </button>
-              <button
-                onClick={(e) => { e.stopPropagation(); nextCol && onMove(goal.id, nextCol.id); }}
-                disabled={!nextCol}
-                className={`p-1 rounded-md transition-colors ${nextCol ? "text-muted-foreground/50 hover:bg-accent/60 hover:text-foreground" : "text-muted-foreground/15 cursor-default"}`}
-                title={nextCol?.label}
-              >
-                <ChevronRight className="h-3.5 w-3.5" />
-              </button>
-              {onRenameStart && (
-                <button
-                  onClick={(e) => { e.stopPropagation(); onRenameStart(goal); }}
-                  className="p-1 rounded-md text-muted-foreground/40 hover:text-foreground hover:bg-accent/60 transition-colors"
-                  title="Переименовать"
-                >
-                  <Pencil className="h-3 w-3" />
-                </button>
-              )}
-            </>
-          );
-        })()}
+      <div className="flex items-stretch">
+        {/* Left arrow */}
         <button
-          onClick={(e) => { e.stopPropagation(); onDelete(goal.id); }}
-          className="ml-auto p-1 rounded-md text-muted-foreground/30 hover:text-destructive hover:bg-destructive/10 transition-colors"
-          title="Удалить"
+          onClick={(e) => { e.stopPropagation(); prevCol && onMove(goal.id, prevCol.id); }}
+          disabled={!prevCol}
+          className={`flex items-center justify-center w-9 shrink-0 border-r border-border/20 transition-colors ${
+            prevCol
+              ? "text-muted-foreground/40 hover:bg-accent/60 hover:text-foreground active:bg-accent"
+              : "text-muted-foreground/10 cursor-default"
+          }`}
+          title={prevCol?.label}
         >
-          <Trash2 className="h-3 w-3" />
+          <ChevronLeft className="h-5 w-5" />
         </button>
-      </div>
+
+        {/* Main content */}
+        <div className="flex-1 p-3 min-w-0">
+          {/* Top row */}
+          <div className="flex items-center gap-1.5 mb-1.5">
+            {cat && (
+              <div className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: cat.color || "#666" }} />
+            )}
+            {cat && <span className="text-[10px] text-muted-foreground truncate">{cat.name}</span>}
+            <Badge variant="outline" className="text-[9px] px-1 py-0 ml-auto shrink-0 leading-tight">
+              {LEVEL_LABELS[goal.level]}
+            </Badge>
+          </div>
+
+          {/* Title */}
+          {isRenaming ? (
+            <input
+              autoFocus
+              value={renameValue ?? ""}
+              onChange={(e) => onRenameChange?.(e.target.value)}
+              onBlur={() => onRenameSave?.(goal.id, renameValue ?? "")}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") onRenameSave?.(goal.id, renameValue ?? "");
+                if (e.key === "Escape") onRenameCancel?.();
+              }}
+              className="text-[13px] font-medium w-full bg-input/50 border border-border/50 rounded-lg px-2 py-1 mb-1 outline-none focus:ring-1 focus:ring-primary/50"
+              onClick={(e) => e.stopPropagation()}
+            />
+          ) : (
+            <h3
+              className={`text-[13px] font-medium leading-snug mb-1 cursor-pointer hover:text-primary transition-colors ${
+                isCompleted ? "line-through text-muted-foreground/60" : ""
+              }`}
+              onClick={() => onEdit(goal)}
+            >
+              {goal.title}
+            </h3>
+          )}
+
+          {/* Description */}
+          {goal.description && (
+            <p className="text-[10px] text-muted-foreground/50 line-clamp-2 mb-2">
+              {goal.description}
+            </p>
+          )}
+
+          {/* Date */}
+          {(goal.target_date || goal.completed_at) && (
+            <div className="flex items-center gap-1 text-[10px] text-muted-foreground/40 mb-2">
+              <Clock className="h-2.5 w-2.5" />
+              {goal.completed_at
+                ? new Date(goal.completed_at).toLocaleDateString("ru-RU")
+                : `до ${new Date(goal.target_date!).toLocaleDateString("ru-RU")}`}
+            </div>
+          )}
+
+          {/* Bottom: rename + delete */}
+          <div className="flex items-center gap-0.5 pt-1.5 border-t border-border/20">
+            {onRenameStart && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onRenameStart(goal); }}
+                className="p-1 rounded-md text-muted-foreground/40 hover:text-foreground hover:bg-accent/60 transition-colors"
+                title="Переименовать"
+              >
+                <Pencil className="h-3 w-3" />
+              </button>
+            )}
+            <button
+                onClick={(e) => { e.stopPropagation(); onDelete(goal.id); }}
+                className="ml-auto p-1 rounded-md text-muted-foreground/30 hover:text-destructive hover:bg-destructive/10 transition-colors"
+                title="Удалить"
+              >
+                <Trash2 className="h-3 w-3" />
+              </button>
+            </div>
+          </div>
+
+          {/* Right arrow */}
+          <button
+            onClick={(e) => { e.stopPropagation(); nextCol && onMove(goal.id, nextCol.id); }}
+            disabled={!nextCol}
+            className={`flex items-center justify-center w-9 shrink-0 border-l border-border/20 transition-colors ${
+              nextCol
+                ? "text-muted-foreground/40 hover:bg-accent/60 hover:text-foreground active:bg-accent"
+                : "text-muted-foreground/10 cursor-default"
+            }`}
+            title={nextCol?.label}
+          >
+            <ChevronRight className="h-5 w-5" />
+          </button>
+        </div>
     </div>
   );
 }
