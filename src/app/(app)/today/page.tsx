@@ -15,6 +15,7 @@ import {
   Bell,
   LayoutGrid,
   List,
+  Crosshair,
   ChevronDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -262,7 +263,7 @@ export default function MainPage() {
   const [editingCatId, setEditingCatId] = useState<string | null>(null);
   const [editCatName, setEditCatName] = useState("");
   const [catMenuOpen, setCatMenuOpen] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<"grid" | "list">("list");
+  const [viewMode, setViewMode] = useState<"grid" | "list" | "focus">("list");
   const [showGoals, setShowGoals] = useState(() => {
     if (typeof window !== "undefined") {
       const saved = localStorage.getItem("life_os_show_goals");
@@ -403,6 +404,31 @@ export default function MainPage() {
     }
     return totalTarget > 0 ? Math.round((totalDone / totalTarget) * 100) : 0;
   }
+
+  // Focus view: top 3 priority goals
+  const todayFocusStr = format(new Date(), "yyyy-MM-dd");
+  const todayTasksByGoal = new Map<string, { done: number; total: number }>();
+  for (const task of tasks) {
+    if (!task.goal_id || (task.scheduled_date as string) !== todayFocusStr) continue;
+    const ex = todayTasksByGoal.get(task.goal_id) || { done: 0, total: 0 };
+    ex.total++;
+    if (task.is_done) ex.done++;
+    todayTasksByGoal.set(task.goal_id, ex);
+  }
+  const focusGoals = [...goals]
+    .sort((a, b) => {
+      const aU = todayTasksByGoal.get(a.id);
+      const bU = todayTasksByGoal.get(b.id);
+      const aUndone = aU ? aU.total - aU.done : 0;
+      const bUndone = bU ? bU.total - bU.done : 0;
+      if (aUndone !== bUndone) return bUndone - aUndone;
+      const aP = goalProgress.get(a.id);
+      const bP = goalProgress.get(b.id);
+      const aPct = aP && aP.total > 0 ? aP.done / aP.total : 1;
+      const bPct = bP && bP.total > 0 ? bP.done / bP.total : 1;
+      return aPct - bPct;
+    })
+    .slice(0, 3);
 
   function openAddGoal(categoryId: string) {
     setGoalDialogCatId(categoryId);
@@ -548,13 +574,87 @@ export default function MainPage() {
               >
                 <List className="h-3.5 w-3.5" />
               </button>
+              <button
+                onClick={() => setViewMode("focus")}
+                className={`p-1.5 rounded-md transition-all ${viewMode === "focus" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground"}`}
+              >
+                <Crosshair className="h-3.5 w-3.5" />
+              </button>
             </div>
           </div>
         </div>
       </div>
 
       {/* Category cards */}
-      {loading ? (
+      {viewMode === "focus" ? (
+        <div className="space-y-3">
+          <p className="text-[11px] text-muted-foreground/40 text-center tracking-wider uppercase">Топ-3 приоритета сегодня</p>
+          {loading ? (
+            <div className="space-y-3">
+              {[...Array(3)].map((_, i) => <div key={i} className="h-36 rounded-2xl bg-card animate-pulse" />)}
+            </div>
+          ) : focusGoals.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 text-center">
+              <p className="text-5xl mb-4">🎉</p>
+              <p className="text-base font-semibold">Всё под контролем!</p>
+              <p className="text-sm text-muted-foreground/50 mt-1">Добавь цели чтобы видеть приоритеты</p>
+            </div>
+          ) : (
+            <AnimatePresence>
+              {focusGoals.map((goal, idx) => {
+                const cat = categories.find((c) => c.id === goal.category_id);
+                const emoji = cat ? getEmoji(cat) : "🎯";
+                const prog = goalProgress.get(goal.id);
+                const todayProg = todayTasksByGoal.get(goal.id);
+                const overallPct = prog && prog.total > 0 ? Math.round((prog.done / prog.total) * 100) : 0;
+                return (
+                  <motion.div
+                    key={goal.id}
+                    initial={{ opacity: 0, y: 16 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: idx * 0.08 }}
+                    onClick={() => { setGoalDialogCatId(goal.category_id || null); setGoalDialogOpen(true); }}
+                    className="rounded-2xl border border-border/40 bg-card p-5 cursor-pointer active:scale-[0.98] transition-transform"
+                    style={{ borderLeftColor: cat?.color || "var(--primary)", borderLeftWidth: "3px" }}
+                  >
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div
+                          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-2xl"
+                          style={{ backgroundColor: `${cat?.color || "var(--primary)"}15` }}
+                        >
+                          {emoji}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-[10px] text-muted-foreground/50 uppercase tracking-wider">{cat?.name}</p>
+                          <p className="text-sm font-semibold leading-snug">{goal.title}</p>
+                        </div>
+                      </div>
+                      <span className="text-xl font-bold tabular-nums shrink-0 ml-2" style={{ color: cat?.color || "var(--primary)" }}>
+                        {overallPct}%
+                      </span>
+                    </div>
+                    {todayProg && todayProg.total > 0 && (
+                      <p className="text-xs text-muted-foreground/60 mb-2.5">
+                        Сегодня: {todayProg.done}/{todayProg.total} задач выполнено
+                      </p>
+                    )}
+                    <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+                      <motion.div
+                        className="h-full rounded-full"
+                        style={{ backgroundColor: cat?.color || "var(--primary)" }}
+                        initial={{ width: 0 }}
+                        animate={{ width: `${overallPct}%` }}
+                        transition={{ duration: 0.8, ease: "easeOut", delay: idx * 0.08 + 0.2 }}
+                      />
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </AnimatePresence>
+          )}
+        </div>
+      ) : loading ? (
         <div className={viewMode === "grid" ? "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4" : "space-y-2"}>
           {[...Array(viewMode === "grid" ? 10 : 5)].map((_, i) => (
             <div key={i} className={viewMode === "grid" ? "h-40 rounded-2xl bg-card animate-pulse" : "h-16 rounded-2xl bg-card animate-pulse"} />
