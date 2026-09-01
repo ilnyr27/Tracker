@@ -637,8 +637,8 @@ export default function MainPage() {
                   <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
                 </filter>
                 <radialGradient id="ring-bg-grad" cx="50%" cy="50%" r="50%">
-                  <stop offset="0%" stopColor="#0a0a1a" />
-                  <stop offset="100%" stopColor="#040410" />
+                  <stop offset="0%" style={{ stopColor: "var(--ring-canvas-1)" }} />
+                  <stop offset="100%" style={{ stopColor: "var(--ring-canvas-2)" }} />
                 </radialGradient>
               </defs>
 
@@ -723,10 +723,9 @@ export default function MainPage() {
                     {/* Dark pill + neon border */}
                     <circle
                       cx={bx} cy={by - 7} r={19}
-                      fill="rgba(4,4,18,0.96)"
                       stroke={c}
                       strokeWidth="1.5"
-                      style={{ filter: `drop-shadow(0 0 5px ${c}90)` }}
+                      style={{ fill: "var(--ring-bubble-bg)", filter: `drop-shadow(0 0 5px ${c}90)` }}
                     />
                     {/* Emoji */}
                     <text x={bx} y={by - 6} textAnchor="middle" dominantBaseline="middle" fontSize="13">
@@ -734,8 +733,8 @@ export default function MainPage() {
                     </text>
                     {/* Name */}
                     <text x={bx} y={by + 18} textAnchor="middle" dominantBaseline="middle"
-                      fontSize="7" fill="rgba(255,255,255,0.45)"
-                      style={{ fontFamily: "inherit" }}
+                      fontSize="7"
+                      style={{ fill: "var(--ring-text-secondary)", fontFamily: "inherit" }}
                     >
                       {cat.name.length > 8 ? cat.name.slice(0, 7) + "…" : cat.name}
                     </text>
@@ -751,27 +750,27 @@ export default function MainPage() {
               })}
 
               {/* Center halo */}
-              <circle cx="170" cy="195" r="50" fill="rgba(4,4,18,0.75)" />
+              <circle cx="170" cy="195" r="50" style={{ fill: "var(--ring-halo)" }} />
 
               {/* Center: СЕГОДНЯ */}
               <text x="170" y="179" textAnchor="middle" dominantBaseline="middle"
-                fontSize="9" fill="rgba(255,255,255,0.38)"
-                style={{ fontFamily: "inherit", letterSpacing: "0.18em" }}
+                fontSize="9"
+                style={{ fill: "var(--ring-text-secondary)", fontFamily: "inherit", letterSpacing: "0.18em" }}
               >
                 СЕГОДНЯ
               </text>
               {/* Center: big % */}
               <text x="170" y="200" textAnchor="middle" dominantBaseline="middle"
-                fontSize="34" fontWeight="700" fill="white"
-                style={{ fontFamily: "inherit" }}
+                fontSize="34" fontWeight="700"
+                style={{ fill: "var(--ring-text-primary)", fontFamily: "inherit" }}
                 filter="url(#ring-center-glow)"
               >
                 {todayTotal > 0 ? Math.round((todayDone / todayTotal) * 100) : overallPercent}%
               </text>
               {/* Center: motivation */}
               <text x="170" y="219" textAnchor="middle" dominantBaseline="middle"
-                fontSize="9" fill="rgba(255,255,255,0.28)"
-                style={{ fontFamily: "inherit" }}
+                fontSize="9"
+                style={{ fill: "var(--ring-text-muted)", fontFamily: "inherit" }}
               >
                 {ringMotivation(todayTotal > 0 ? Math.round((todayDone / todayTotal) * 100) : overallPercent)}
               </text>

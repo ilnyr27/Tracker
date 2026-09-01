@@ -82,6 +82,14 @@
   --sidebar-accent-foreground: oklch(0.2 0.02 260);
   --sidebar-border: oklch(0.91 0.008 260);
   --sidebar-ring: oklch(0.55 0.2 250);
+  /* Ring view — neon chart */
+  --ring-canvas-1: #eef2ff;
+  --ring-canvas-2: #f0f4ff;
+  --ring-bubble-bg: rgba(255, 255, 255, 0.97);
+  --ring-text-primary: rgba(10, 10, 30, 0.9);
+  --ring-text-secondary: rgba(10, 10, 30, 0.42);
+  --ring-text-muted: rgba(10, 10, 30, 0.28);
+  --ring-halo: rgba(238, 242, 255, 0.85);
 }
 
 /* ===== DARK THEME ===== */
@@ -117,6 +125,14 @@
   --sidebar-accent-foreground: oklch(0.95 0 0);
   --sidebar-border: oklch(0.25 0.012 260);
   --sidebar-ring: oklch(0.65 0.19 250);
+  /* Ring view — neon chart */
+  --ring-canvas-1: #0a0a1a;
+  --ring-canvas-2: #040410;
+  --ring-bubble-bg: rgba(4, 4, 18, 0.96);
+  --ring-text-primary: rgba(255, 255, 255, 0.92);
+  --ring-text-secondary: rgba(255, 255, 255, 0.38);
+  --ring-text-muted: rgba(255, 255, 255, 0.28);
+  --ring-halo: rgba(4, 4, 18, 0.75);
 }
 
 /* ===== ACCENT COLOR OVERRIDES ===== */
