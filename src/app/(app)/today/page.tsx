@@ -625,31 +625,46 @@ export default function MainPage() {
             <div className="h-80 w-80 rounded-full bg-card animate-pulse mx-auto" />
           ) : (
             <motion.svg
-              viewBox="0 0 340 385"
+              viewBox="0 0 340 390"
               className="w-full max-w-[390px]"
               initial={{ opacity: 0, scale: 0.88 }}
               animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.5, ease: [0.23, 1, 0.32, 1] }}
+              transition={{ duration: 0.55, ease: [0.23, 1, 0.32, 1] }}
             >
-              {/* Background sectors */}
+              <defs>
+                <filter id="ring-center-glow" x="-60%" y="-60%" width="220%" height="220%">
+                  <feGaussianBlur stdDeviation="4" result="blur" />
+                  <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+                </filter>
+                <radialGradient id="ring-bg-grad" cx="50%" cy="50%" r="50%">
+                  <stop offset="0%" stopColor="#0a0a1a" />
+                  <stop offset="100%" stopColor="#040410" />
+                </radialGradient>
+              </defs>
+
+              {/* Dark canvas */}
+              <rect x="0" y="0" width="340" height="390" rx="28" fill="url(#ring-bg-grad)" />
+
+              {/* Background sectors — dim neon outlines */}
               {categories.map((cat, i) => {
                 const n = categories.length || 1;
                 const step = 360 / n;
                 const gap = Math.min(3.5, step * 0.09);
-                const bgStart = i * step + gap;
-                const bgEnd = (i + 1) * step - gap;
+                const c = cat.color || "#6366f1";
                 return (
                   <path
                     key={`bg-${cat.id}`}
-                    d={donutSector(170, 192, 83, 52, bgStart, bgEnd)}
-                    fill={`${cat.color || "#6366f1"}20`}
+                    d={donutSector(170, 195, 86, 55, i * step + gap, (i + 1) * step - gap)}
+                    fill={`${c}28`}
+                    stroke={`${c}18`}
+                    strokeWidth="0.5"
                     onClick={() => { setGoalDialogCatId(cat.id); setGoalDialogOpen(true); }}
                     className="cursor-pointer"
                   />
                 );
               })}
 
-              {/* Progress fill sectors */}
+              {/* Progress fill sectors — neon glow */}
               {categories.map((cat, i) => {
                 const n = categories.length || 1;
                 const step = 360 / n;
@@ -659,84 +674,75 @@ export default function MainPage() {
                 const pct = getCategoryPercent(cat.id);
                 if (pct === 0) return null;
                 const fillEnd = bgStart + (bgEnd - bgStart) * (pct / 100);
+                const c = cat.color || "#6366f1";
                 return (
                   <path
                     key={`fill-${cat.id}`}
-                    d={donutSector(170, 192, 83, 52, bgStart, fillEnd)}
-                    fill={cat.color || "#6366f1"}
+                    d={donutSector(170, 195, 86, 55, bgStart, fillEnd)}
+                    fill={c}
                     onClick={() => { setGoalDialogCatId(cat.id); setGoalDialogOpen(true); }}
                     className="cursor-pointer"
-                    style={{ filter: `drop-shadow(0 0 6px ${cat.color || "#6366f1"}70)` }}
+                    style={{ filter: `drop-shadow(0 0 3px ${c}) drop-shadow(0 0 8px ${c}cc) drop-shadow(0 0 18px ${c}66)` }}
                   />
                 );
               })}
 
-              {/* Connector lines: ring edge → bubble */}
+              {/* Connector lines — neon */}
               {categories.map((cat, i) => {
                 const n = categories.length || 1;
                 const midRad = ((i + 0.5) * 360 / n - 90) * (Math.PI / 180);
-                const x1 = 170 + 85 * Math.cos(midRad);
-                const y1 = 192 + 85 * Math.sin(midRad);
-                const x2 = 170 + 95 * Math.cos(midRad);
-                const y2 = 192 + 95 * Math.sin(midRad);
+                const c = cat.color || "#6366f1";
                 return (
                   <line
                     key={`line-${cat.id}`}
-                    x1={x1} y1={y1} x2={x2} y2={y2}
-                    stroke={cat.color || "#6366f1"}
-                    strokeWidth="1"
-                    strokeOpacity="0.4"
+                    x1={170 + 88 * Math.cos(midRad)}
+                    y1={195 + 88 * Math.sin(midRad)}
+                    x2={170 + 97 * Math.cos(midRad)}
+                    y2={195 + 97 * Math.sin(midRad)}
+                    stroke={c}
+                    strokeWidth="1.5"
+                    strokeOpacity="0.75"
+                    style={{ filter: `drop-shadow(0 0 3px ${c})` }}
                   />
                 );
               })}
 
-              {/* Category bubbles outside the ring */}
+              {/* Category bubbles */}
               {categories.map((cat, i) => {
                 const n = categories.length || 1;
                 const midRad = ((i + 0.5) * 360 / n - 90) * (Math.PI / 180);
-                const bx = 170 + 114 * Math.cos(midRad);
-                const by = 192 + 114 * Math.sin(midRad);
+                const bx = 170 + 117 * Math.cos(midRad);
+                const by = 195 + 117 * Math.sin(midRad);
                 const pct = getCategoryPercent(cat.id);
                 const emoji = getEmoji(cat);
+                const c = cat.color || "#6366f1";
                 return (
-                  <g
-                    key={`bubble-${cat.id}`}
-                    onClick={() => { setGoalDialogCatId(cat.id); setGoalDialogOpen(true); }}
-                    className="cursor-pointer"
-                  >
-                    {/* Bubble glow */}
-                    <circle cx={bx} cy={by - 6} r={22} fill={`${cat.color || "#6366f1"}12`} />
-                    {/* Bubble circle */}
+                  <g key={`bubble-${cat.id}`} onClick={() => { setGoalDialogCatId(cat.id); setGoalDialogOpen(true); }} className="cursor-pointer">
+                    {/* Outer glow halo */}
+                    <circle cx={bx} cy={by - 7} r={26} fill={`${c}14`} />
+                    {/* Dark pill + neon border */}
                     <circle
-                      cx={bx} cy={by - 6} r={18}
-                      fill={`${cat.color || "#6366f1"}22`}
-                      stroke={`${cat.color || "#6366f1"}60`}
-                      strokeWidth="1.2"
+                      cx={bx} cy={by - 7} r={19}
+                      fill="rgba(4,4,18,0.96)"
+                      stroke={c}
+                      strokeWidth="1.5"
+                      style={{ filter: `drop-shadow(0 0 5px ${c}90)` }}
                     />
                     {/* Emoji */}
-                    <text
-                      x={bx} y={by - 5}
-                      textAnchor="middle" dominantBaseline="middle"
-                      fontSize="13"
-                    >
+                    <text x={bx} y={by - 6} textAnchor="middle" dominantBaseline="middle" fontSize="13">
                       {emoji}
                     </text>
-                    {/* Category name */}
-                    <text
-                      x={bx} y={by + 16}
-                      textAnchor="middle" dominantBaseline="middle"
-                      fontSize="7" fill="currentColor"
-                      style={{ opacity: 0.45, fontFamily: "inherit" }}
+                    {/* Name */}
+                    <text x={bx} y={by + 18} textAnchor="middle" dominantBaseline="middle"
+                      fontSize="7" fill="rgba(255,255,255,0.45)"
+                      style={{ fontFamily: "inherit" }}
                     >
                       {cat.name.length > 8 ? cat.name.slice(0, 7) + "…" : cat.name}
                     </text>
-                    {/* Percentage */}
-                    <text
-                      x={bx} y={by + 26}
-                      textAnchor="middle" dominantBaseline="middle"
-                      fontSize="8" fontWeight="700"
-                      fill={cat.color || "#6366f1"}
-                      style={{ fontFamily: "inherit" }}
+                    {/* % with neon color */}
+                    <text x={bx} y={by + 28} textAnchor="middle" dominantBaseline="middle"
+                      fontSize="8" fontWeight="700" fill={c}
+                      style={{ fontFamily: "inherit", filter: `drop-shadow(0 0 3px ${c})` }}
                     >
                       {pct}%
                     </text>
@@ -744,28 +750,28 @@ export default function MainPage() {
                 );
               })}
 
-              {/* Center: label + big % + motivation */}
-              <text
-                x="170" y="177"
-                textAnchor="middle" dominantBaseline="middle"
-                fontSize="9" fill="currentColor"
-                style={{ opacity: 0.35, fontFamily: "inherit", letterSpacing: "0.12em" }}
+              {/* Center halo */}
+              <circle cx="170" cy="195" r="50" fill="rgba(4,4,18,0.75)" />
+
+              {/* Center: СЕГОДНЯ */}
+              <text x="170" y="179" textAnchor="middle" dominantBaseline="middle"
+                fontSize="9" fill="rgba(255,255,255,0.38)"
+                style={{ fontFamily: "inherit", letterSpacing: "0.18em" }}
               >
                 СЕГОДНЯ
               </text>
-              <text
-                x="170" y="197"
-                textAnchor="middle" dominantBaseline="middle"
-                fontSize="30" fontWeight="700" fill="currentColor"
+              {/* Center: big % */}
+              <text x="170" y="200" textAnchor="middle" dominantBaseline="middle"
+                fontSize="34" fontWeight="700" fill="white"
                 style={{ fontFamily: "inherit" }}
+                filter="url(#ring-center-glow)"
               >
                 {todayTotal > 0 ? Math.round((todayDone / todayTotal) * 100) : overallPercent}%
               </text>
-              <text
-                x="170" y="215"
-                textAnchor="middle" dominantBaseline="middle"
-                fontSize="9" fill="currentColor"
-                style={{ opacity: 0.3, fontFamily: "inherit" }}
+              {/* Center: motivation */}
+              <text x="170" y="219" textAnchor="middle" dominantBaseline="middle"
+                fontSize="9" fill="rgba(255,255,255,0.28)"
+                style={{ fontFamily: "inherit" }}
               >
                 {ringMotivation(todayTotal > 0 ? Math.round((todayDone / todayTotal) * 100) : overallPercent)}
               </text>
