@@ -428,6 +428,18 @@ export default function MainPage() {
     return totalTarget > 0 ? Math.round((totalDone / totalTarget) * 100) : 0;
   }
 
+  function getGoalPercent(goal: Goal): number {
+    if (goal.tracking_type === "habit") {
+      const prog = goalProgress.get(goal.id);
+      const target = goal.target_days || 0;
+      if (target >= 99999) return (prog?.done || 0) > 0 ? 100 : 0;
+      return target > 0 ? Math.min(100, Math.round(((prog?.done || 0) / target) * 100)) : 0;
+    }
+    const prog = goalProgress.get(goal.id);
+    if (prog && prog.total > 0) return Math.round((prog.done / prog.total) * 100);
+    return goal.status === "completed" ? 100 : 0;
+  }
+
   // Focus view: top 3 priority goals
   const todayFocusStr = format(new Date(), "yyyy-MM-dd");
   const todayTasksByGoal = new Map<string, { done: number; total: number }>();
@@ -456,6 +468,37 @@ export default function MainPage() {
   const overallPercent = categories.length > 0
     ? Math.round(categories.reduce((sum, cat) => sum + getCategoryPercent(cat.id), 0) / categories.length)
     : 0;
+
+  // Ring view: precompute sector geometry + goal splits
+  const ringSectorData = categories.map((cat, i) => {
+    const n = categories.length || 1;
+    const step = 360 / n;
+    const gap = Math.min(3.5, step * 0.09);
+    const catStart = i * step + gap;
+    const catEnd = (i + 1) * step - gap;
+    const catSpan = catEnd - catStart;
+    const c = cat.color || "#6366f1";
+    const midRad = ((i + 0.5) * 360 / n - 90) * (Math.PI / 180);
+    const bx = 170 + 117 * Math.cos(midRad);
+    const by = 195 + 117 * Math.sin(midRad);
+    const catGoals = goalsByCategory.get(cat.id) || [];
+    let goalSectors: Array<{ id: string; bgStart: number; bgEnd: number; fillEnd: number; pct: number }>;
+    if (catGoals.length === 0) {
+      goalSectors = [{ id: cat.id, bgStart: catStart, bgEnd: catEnd, fillEnd: catStart, pct: 0 }];
+    } else if (catGoals.length === 1) {
+      const pct = getCategoryPercent(cat.id);
+      goalSectors = [{ id: cat.id + "-0", bgStart: catStart, bgEnd: catEnd, fillEnd: catStart + catSpan * (pct / 100), pct }];
+    } else {
+      const innerGap = Math.min(1.5, catSpan * 0.05);
+      const goalSpan = (catSpan - innerGap * (catGoals.length - 1)) / catGoals.length;
+      goalSectors = catGoals.map((goal, j) => {
+        const gs = catStart + j * (goalSpan + innerGap);
+        const pct = getGoalPercent(goal);
+        return { id: goal.id, bgStart: gs, bgEnd: gs + goalSpan, fillEnd: gs + goalSpan * (pct / 100), pct };
+      });
+    }
+    return { cat, c, midRad, bx, by, goalSectors };
+  });
 
   function openAddGoal(categoryId: string) {
     setGoalDialogCatId(categoryId);
@@ -640,92 +683,89 @@ export default function MainPage() {
                   <stop offset="0%" style={{ stopColor: "var(--ring-canvas-1)" }} />
                   <stop offset="100%" style={{ stopColor: "var(--ring-canvas-2)" }} />
                 </radialGradient>
+                {/* Glass shine gradient — top arc */}
+                <linearGradient id="ring-glass-shine" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="white" stopOpacity="0.22" />
+                  <stop offset="65%" stopColor="white" stopOpacity="0.04" />
+                  <stop offset="100%" stopColor="white" stopOpacity="0" />
+                </linearGradient>
               </defs>
 
-              {/* Dark canvas */}
+              {/* Canvas */}
               <rect x="0" y="0" width="340" height="390" rx="28" fill="url(#ring-bg-grad)" />
 
-              {/* Background sectors — dim neon outlines */}
-              {categories.map((cat, i) => {
-                const n = categories.length || 1;
-                const step = 360 / n;
-                const gap = Math.min(3.5, step * 0.09);
-                const c = cat.color || "#6366f1";
-                return (
-                  <path
-                    key={`bg-${cat.id}`}
-                    d={donutSector(170, 195, 86, 55, i * step + gap, (i + 1) * step - gap)}
-                    fill={`${c}28`}
-                    stroke={`${c}18`}
-                    strokeWidth="0.5"
+              {/* Background sectors — split per goal if multiple */}
+              {ringSectorData.flatMap(({ cat, c, goalSectors }) =>
+                goalSectors.map(s => (
+                  <path key={`bg-${s.id}`}
+                    d={donutSector(170, 195, 86, 55, s.bgStart, s.bgEnd)}
+                    fill={`${c}28`} stroke={`${c}18`} strokeWidth="0.5"
                     onClick={() => { setGoalDialogCatId(cat.id); setGoalDialogOpen(true); }}
                     className="cursor-pointer"
                   />
-                );
-              })}
+                ))
+              )}
 
-              {/* Progress fill sectors — neon glow */}
-              {categories.map((cat, i) => {
-                const n = categories.length || 1;
-                const step = 360 / n;
-                const gap = Math.min(3.5, step * 0.09);
-                const bgStart = i * step + gap;
-                const bgEnd = (i + 1) * step - gap;
-                const pct = getCategoryPercent(cat.id);
-                if (pct === 0) return null;
-                const fillEnd = bgStart + (bgEnd - bgStart) * (pct / 100);
-                const c = cat.color || "#6366f1";
-                return (
-                  <path
-                    key={`fill-${cat.id}`}
-                    d={donutSector(170, 195, 86, 55, bgStart, fillEnd)}
-                    fill={c}
-                    onClick={() => { setGoalDialogCatId(cat.id); setGoalDialogOpen(true); }}
-                    className="cursor-pointer"
-                    style={{ filter: `drop-shadow(0 0 3px ${c}) drop-shadow(0 0 8px ${c}cc) drop-shadow(0 0 18px ${c}66)` }}
-                  />
-                );
-              })}
+              {/* Fill sectors — neon glow per goal */}
+              {ringSectorData.flatMap(({ cat, c, goalSectors }) =>
+                goalSectors
+                  .filter(s => s.pct > 0)
+                  .map(s => (
+                    <path key={`fill-${s.id}`}
+                      d={donutSector(170, 195, 86, 55, s.bgStart, s.fillEnd)}
+                      fill={c}
+                      onClick={() => { setGoalDialogCatId(cat.id); setGoalDialogOpen(true); }}
+                      className="cursor-pointer"
+                      style={{ filter: `drop-shadow(0 0 3px ${c}) drop-shadow(0 0 8px ${c}cc) drop-shadow(0 0 18px ${c}66)` }}
+                    />
+                  ))
+              )}
+
+              {/* Glass ring — top shine arc */}
+              <path
+                d={donutSector(170, 195, 86, 55, -55, 55)}
+                fill="url(#ring-glass-shine)"
+                style={{ pointerEvents: "none" }}
+              />
+              {/* Glass ring — inner edge highlight */}
+              <circle cx="170" cy="195" r="55.4" fill="none"
+                stroke="rgba(255,255,255,0.18)" strokeWidth="0.8"
+                style={{ pointerEvents: "none" }}
+              />
+              {/* Glass ring — outer edge highlight */}
+              <circle cx="170" cy="195" r="85.6" fill="none"
+                stroke="rgba(255,255,255,0.10)" strokeWidth="0.8"
+                style={{ pointerEvents: "none" }}
+              />
 
               {/* Connector lines — neon */}
-              {categories.map((cat, i) => {
-                const n = categories.length || 1;
-                const midRad = ((i + 0.5) * 360 / n - 90) * (Math.PI / 180);
-                const c = cat.color || "#6366f1";
-                return (
-                  <line
-                    key={`line-${cat.id}`}
-                    x1={170 + 88 * Math.cos(midRad)}
-                    y1={195 + 88 * Math.sin(midRad)}
-                    x2={170 + 97 * Math.cos(midRad)}
-                    y2={195 + 97 * Math.sin(midRad)}
-                    stroke={c}
-                    strokeWidth="1.5"
-                    strokeOpacity="0.75"
-                    style={{ filter: `drop-shadow(0 0 3px ${c})` }}
-                  />
-                );
-              })}
+              {ringSectorData.map(({ cat, c, midRad }) => (
+                <line key={`line-${cat.id}`}
+                  x1={170 + 88 * Math.cos(midRad)} y1={195 + 88 * Math.sin(midRad)}
+                  x2={170 + 97 * Math.cos(midRad)} y2={195 + 97 * Math.sin(midRad)}
+                  stroke={c} strokeWidth="1.5" strokeOpacity="0.75"
+                  style={{ filter: `drop-shadow(0 0 3px ${c})` }}
+                />
+              ))}
 
               {/* Category bubbles */}
-              {categories.map((cat, i) => {
-                const n = categories.length || 1;
-                const midRad = ((i + 0.5) * 360 / n - 90) * (Math.PI / 180);
-                const bx = 170 + 117 * Math.cos(midRad);
-                const by = 195 + 117 * Math.sin(midRad);
+              {ringSectorData.map(({ cat, c, bx, by }) => {
                 const pct = getCategoryPercent(cat.id);
                 const emoji = getEmoji(cat);
-                const c = cat.color || "#6366f1";
                 return (
-                  <g key={`bubble-${cat.id}`} onClick={() => { setGoalDialogCatId(cat.id); setGoalDialogOpen(true); }} className="cursor-pointer">
+                  <g key={`bubble-${cat.id}`}
+                    onClick={() => { setGoalDialogCatId(cat.id); setGoalDialogOpen(true); }}
+                    className="cursor-pointer"
+                  >
                     {/* Outer glow halo */}
                     <circle cx={bx} cy={by - 7} r={26} fill={`${c}14`} />
-                    {/* Dark pill + neon border */}
-                    <circle
-                      cx={bx} cy={by - 7} r={19}
-                      stroke={c}
-                      strokeWidth="1.5"
+                    {/* Bubble bg + neon border */}
+                    <circle cx={bx} cy={by - 7} r={19} stroke={c} strokeWidth="1.5"
                       style={{ fill: "var(--ring-bubble-bg)", filter: `drop-shadow(0 0 5px ${c}90)` }}
+                    />
+                    {/* Bubble glass highlight */}
+                    <circle cx={bx} cy={by - 13} r={10} fill="rgba(255,255,255,0.08)"
+                      style={{ pointerEvents: "none" }}
                     />
                     {/* Emoji */}
                     <text x={bx} y={by - 6} textAnchor="middle" dominantBaseline="middle" fontSize="13">
@@ -733,12 +773,11 @@ export default function MainPage() {
                     </text>
                     {/* Name */}
                     <text x={bx} y={by + 18} textAnchor="middle" dominantBaseline="middle"
-                      fontSize="7"
-                      style={{ fill: "var(--ring-text-secondary)", fontFamily: "inherit" }}
+                      fontSize="7" style={{ fill: "var(--ring-text-secondary)", fontFamily: "inherit" }}
                     >
                       {cat.name.length > 8 ? cat.name.slice(0, 7) + "…" : cat.name}
                     </text>
-                    {/* % with neon color */}
+                    {/* % */}
                     <text x={bx} y={by + 28} textAnchor="middle" dominantBaseline="middle"
                       fontSize="8" fontWeight="700" fill={c}
                       style={{ fontFamily: "inherit", filter: `drop-shadow(0 0 3px ${c})` }}
@@ -769,8 +808,7 @@ export default function MainPage() {
               </text>
               {/* Center: motivation */}
               <text x="170" y="219" textAnchor="middle" dominantBaseline="middle"
-                fontSize="9"
-                style={{ fill: "var(--ring-text-muted)", fontFamily: "inherit" }}
+                fontSize="9" style={{ fill: "var(--ring-text-muted)", fontFamily: "inherit" }}
               >
                 {ringMotivation(todayTotal > 0 ? Math.round((todayDone / todayTotal) * 100) : overallPercent)}
               </text>
