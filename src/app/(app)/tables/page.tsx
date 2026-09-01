@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Plus, Trash2, ChevronDown, X, Check, Table2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -83,6 +83,7 @@ export default function TablesPage() {
   // Inline cell editing
   const [editingCell, setEditingCell] = useState<EditingCell>(null);
   const [editingValue, setEditingValue] = useState("");
+  const editInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     loadTabs();
@@ -420,16 +421,35 @@ export default function TablesPage() {
                                             editingCell?.entryId === entry.id &&
                                             editingCell?.colKey === col.key;
 
+                                          const isFormulaMode = !isEditing && !!editingCell && editingValue.startsWith("=");
+
                                           return (
                                             <td
                                               key={col.key}
-                                              className={`whitespace-nowrap cursor-text hover:bg-primary/5 transition-colors ${isEditing ? 'px-1 py-0.5' : 'px-3 py-2.5'}`}
+                                              className={`whitespace-nowrap cursor-text hover:bg-primary/5 transition-colors ${isEditing ? 'px-1 py-0.5' : 'px-3 py-2.5'} ${isFormulaMode ? 'ring-1 ring-primary/20 cursor-crosshair' : ''}`}
+                                              onMouseDown={(e) => {
+                                                if (isFormulaMode) {
+                                                  e.preventDefault();
+                                                  const input = editInputRef.current;
+                                                  const pos = input?.selectionStart ?? editingValue.length;
+                                                  const newVal = editingValue.slice(0, pos) + col.label + editingValue.slice(pos);
+                                                  setEditingValue(newVal);
+                                                  setTimeout(() => {
+                                                    if (input) {
+                                                      input.focus();
+                                                      input.setSelectionRange(pos + col.label.length, pos + col.label.length);
+                                                    }
+                                                  }, 0);
+                                                }
+                                              }}
                                               onClick={() => {
+                                                if (isFormulaMode) return;
                                                 if (!isEditing) startEditCell(tab.id, entry.id, col.key, cellStr);
                                               }}
                                             >
                                               {isEditing ? (
                                                 <input
+                                                  ref={editInputRef}
                                                   autoFocus
                                                   value={editingValue}
                                                   onChange={(e) => setEditingValue(e.target.value)}

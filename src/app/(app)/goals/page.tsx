@@ -381,7 +381,7 @@ export default function GoalsPage() {
                   <button
                     key={col.id}
                     onClick={() => setMobileActiveColumn(col.id)}
-                    className={`shrink-0 flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                    className={`shrink-0 flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-all ${
                       isActive ? MOBILE_COL_COLORS[col.id].pill : "bg-muted text-muted-foreground"
                     }`}
                   >

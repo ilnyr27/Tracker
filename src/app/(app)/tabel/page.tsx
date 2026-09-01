@@ -365,13 +365,23 @@ export default function MatrixPage() {
           <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl" onClick={navigateBack} aria-label="Назад">
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl" onClick={() => setCurrentDate(new Date())} aria-label="Сегодня">
-            <CalendarDays className="h-3.5 w-3.5" />
-          </Button>
           <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl" onClick={navigateForward} aria-label="Вперёд">
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
+
+        {/* Записи — swapped before period tabs */}
+        {baseMode !== "year" && (
+          <button
+            onClick={() => { const n = !showNotes; setShowNotes(n); localStorage.setItem("matrix_show_notes", String(n)); }}
+            className={`px-2 py-1.5 rounded-lg text-xs border transition-all flex items-center gap-1 ${
+              showNotes ? "bg-blue-500/10 text-blue-500 border-blue-500/30 font-medium" : "text-muted-foreground border-border/50 hover:bg-accent/50"
+            }`}
+          >
+            <NotebookPen className="h-3 w-3" />
+            Записи
+          </button>
+        )}
 
         {/* Period tabs */}
         <div className="flex rounded-xl border border-border/50 overflow-hidden text-xs" role="tablist" aria-label="Период отображения">
@@ -397,18 +407,10 @@ export default function MatrixPage() {
           ))}
         </div>
 
-        {/* Записи */}
-        {baseMode !== "year" && (
-          <button
-            onClick={() => { const n = !showNotes; setShowNotes(n); localStorage.setItem("matrix_show_notes", String(n)); }}
-            className={`px-2 py-1.5 rounded-lg text-xs border transition-all flex items-center gap-1 ${
-              showNotes ? "bg-blue-500/10 text-blue-500 border-blue-500/30 font-medium" : "text-muted-foreground border-border/50 hover:bg-accent/50"
-            }`}
-          >
-            <NotebookPen className="h-3 w-3" />
-            Записи
-          </button>
-        )}
+        {/* CalendarDays (today) — swapped from nav arrows to after period tabs */}
+        <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl" onClick={() => setCurrentDate(new Date())} aria-label="Сегодня">
+          <CalendarDays className="h-3.5 w-3.5" />
+        </Button>
 
         {/* От сегодня */}
         <button
