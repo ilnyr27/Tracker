@@ -16,6 +16,7 @@ import {
   LayoutGrid,
   List,
   Crosshair,
+  PieChart,
   ChevronDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -154,6 +155,20 @@ const EMOJI_GROUPS: { label: string; emojis: string[] }[] = [
 
 const EMOJI_OPTIONS = EMOJI_GROUPS.flatMap((g) => g.emojis);
 
+function donutSector(
+  cx: number, cy: number, R: number, r: number,
+  startDeg: number, endDeg: number
+): string {
+  const rad = (d: number) => (d - 90) * (Math.PI / 180);
+  const s = rad(startDeg), e = rad(endDeg);
+  const large = endDeg - startDeg > 180 ? 1 : 0;
+  const x1 = cx + R * Math.cos(s), y1 = cy + R * Math.sin(s);
+  const x2 = cx + R * Math.cos(e), y2 = cy + R * Math.sin(e);
+  const x3 = cx + r * Math.cos(e), y3 = cy + r * Math.sin(e);
+  const x4 = cx + r * Math.cos(s), y4 = cy + r * Math.sin(s);
+  return `M ${x1} ${y1} A ${R} ${R} 0 ${large} 1 ${x2} ${y2} L ${x3} ${y3} A ${r} ${r} 0 ${large} 0 ${x4} ${y4} Z`;
+}
+
 function EmojiPicker({ selected, onSelect }: { selected: string; onSelect: (e: string) => void }) {
   const [activeGroup, setActiveGroup] = useState(0);
   const [search, setSearch] = useState("");
@@ -263,7 +278,7 @@ export default function MainPage() {
   const [editingCatId, setEditingCatId] = useState<string | null>(null);
   const [editCatName, setEditCatName] = useState("");
   const [catMenuOpen, setCatMenuOpen] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<"grid" | "list" | "focus">("list");
+  const [viewMode, setViewMode] = useState<"grid" | "list" | "focus" | "ring">("list");
   const [showGoals, setShowGoals] = useState(() => {
     if (typeof window !== "undefined") {
       const saved = localStorage.getItem("life_os_show_goals");
@@ -430,6 +445,10 @@ export default function MainPage() {
     })
     .slice(0, 3);
 
+  const overallPercent = categories.length > 0
+    ? Math.round(categories.reduce((sum, cat) => sum + getCategoryPercent(cat.id), 0) / categories.length)
+    : 0;
+
   function openAddGoal(categoryId: string) {
     setGoalDialogCatId(categoryId);
     setGoalDialogOpen(true);
@@ -580,13 +599,149 @@ export default function MainPage() {
               >
                 <Crosshair className="h-3.5 w-3.5" />
               </button>
+              <button
+                onClick={() => setViewMode("ring")}
+                className={`p-1.5 rounded-md transition-all ${viewMode === "ring" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground"}`}
+              >
+                <PieChart className="h-3.5 w-3.5" />
+              </button>
             </div>
           </div>
         </div>
       </div>
 
       {/* Category cards */}
-      {viewMode === "focus" ? (
+      {viewMode === "ring" ? (
+        <div className="flex flex-col items-center gap-5 pb-4">
+          {loading ? (
+            <div className="h-72 w-72 rounded-full bg-card animate-pulse" />
+          ) : (
+            <>
+              <motion.svg
+                viewBox="0 0 300 300"
+                className="w-full max-w-[300px] drop-shadow-sm"
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.4, ease: "easeOut" }}
+              >
+                {/* Background sectors */}
+                {categories.map((cat, i) => {
+                  const n = categories.length || 1;
+                  const step = 360 / n;
+                  const gap = Math.min(3, step * 0.08);
+                  const bgStart = i * step + gap;
+                  const bgEnd = (i + 1) * step - gap;
+                  return (
+                    <path
+                      key={`bg-${cat.id}`}
+                      d={donutSector(150, 150, 132, 80, bgStart, bgEnd)}
+                      fill={`${cat.color || "#6366f1"}28`}
+                      onClick={() => { setGoalDialogCatId(cat.id); setGoalDialogOpen(true); }}
+                      className="cursor-pointer"
+                    />
+                  );
+                })}
+                {/* Progress fill sectors */}
+                {categories.map((cat, i) => {
+                  const n = categories.length || 1;
+                  const step = 360 / n;
+                  const gap = Math.min(3, step * 0.08);
+                  const bgStart = i * step + gap;
+                  const bgEnd = (i + 1) * step - gap;
+                  const pct = getCategoryPercent(cat.id);
+                  if (pct === 0) return null;
+                  const fillEnd = bgStart + (bgEnd - bgStart) * (pct / 100);
+                  return (
+                    <path
+                      key={`fill-${cat.id}`}
+                      d={donutSector(150, 150, 132, 80, bgStart, fillEnd)}
+                      fill={cat.color || "#6366f1"}
+                      onClick={() => { setGoalDialogCatId(cat.id); setGoalDialogOpen(true); }}
+                      className="cursor-pointer"
+                      style={{ filter: `drop-shadow(0 0 4px ${cat.color || "#6366f1"}66)` }}
+                    />
+                  );
+                })}
+                {/* Emoji labels in the middle of each sector */}
+                {categories.map((cat, i) => {
+                  const n = categories.length || 1;
+                  const step = 360 / n;
+                  const midDeg = (i + 0.5) * step - 90;
+                  const midRad = midDeg * (Math.PI / 180);
+                  const labelR = 106;
+                  const lx = 150 + labelR * Math.cos(midRad);
+                  const ly = 150 + labelR * Math.sin(midRad);
+                  return (
+                    <text
+                      key={`emoji-${cat.id}`}
+                      x={lx}
+                      y={ly}
+                      textAnchor="middle"
+                      dominantBaseline="middle"
+                      fontSize="14"
+                      onClick={() => { setGoalDialogCatId(cat.id); setGoalDialogOpen(true); }}
+                      className="cursor-pointer select-none"
+                    >
+                      {getEmoji(cat)}
+                    </text>
+                  );
+                })}
+                {/* Center overall % */}
+                <text
+                  x="150" y="142"
+                  textAnchor="middle"
+                  dominantBaseline="middle"
+                  fontSize="32"
+                  fontWeight="700"
+                  fill="currentColor"
+                  style={{ fontFamily: "inherit" }}
+                >
+                  {overallPercent}%
+                </text>
+                <text
+                  x="150" y="166"
+                  textAnchor="middle"
+                  dominantBaseline="middle"
+                  fontSize="11"
+                  fill="currentColor"
+                  style={{ opacity: 0.4, fontFamily: "inherit" }}
+                >
+                  баланс
+                </text>
+              </motion.svg>
+
+              {/* Category legend grid */}
+              <div className="grid grid-cols-2 gap-2 w-full">
+                {categories.map((cat) => {
+                  const pct = getCategoryPercent(cat.id);
+                  const emoji = getEmoji(cat);
+                  return (
+                    <button
+                      key={cat.id}
+                      onClick={() => { setGoalDialogCatId(cat.id); setGoalDialogOpen(true); }}
+                      className="flex items-center gap-2 px-3 py-2.5 rounded-xl border border-border/30 bg-card text-left active:scale-[0.97] transition-transform"
+                    >
+                      <span className="text-base shrink-0">{emoji}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[11px] font-medium truncate leading-tight">{cat.name}</p>
+                        <div className="flex items-center gap-1.5 mt-1">
+                          <div className="h-1 flex-1 rounded-full bg-muted overflow-hidden">
+                            <div
+                              className="h-full rounded-full transition-all"
+                              style={{ width: `${pct}%`, backgroundColor: cat.color || "var(--primary)" }}
+                            />
+                          </div>
+                          <span className="text-[10px] text-muted-foreground tabular-nums shrink-0">{pct}%</span>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </div>
+      ) : viewMode === "focus" ? (
         <div className="space-y-3">
           <p className="text-[11px] text-muted-foreground/40 text-center tracking-wider uppercase">Топ-3 приоритета сегодня</p>
           {loading ? (
