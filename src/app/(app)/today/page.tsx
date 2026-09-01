@@ -155,6 +155,14 @@ const EMOJI_GROUPS: { label: string; emojis: string[] }[] = [
 
 const EMOJI_OPTIONS = EMOJI_GROUPS.flatMap((g) => g.emojis);
 
+function ringMotivation(pct: number): string {
+  if (pct === 0) return "Начни движение!";
+  if (pct < 30) return "Движение есть";
+  if (pct < 60) return "Хороший темп";
+  if (pct < 90) return "Отличный день!";
+  return "Максимум!";
+}
+
 function donutSector(
   cx: number, cy: number, R: number, r: number,
   startDeg: number, endDeg: number
@@ -612,133 +620,156 @@ export default function MainPage() {
 
       {/* Category cards */}
       {viewMode === "ring" ? (
-        <div className="flex flex-col items-center gap-5 pb-4">
+        <div className="flex flex-col items-center -mx-4 pb-2">
           {loading ? (
-            <div className="h-72 w-72 rounded-full bg-card animate-pulse" />
+            <div className="h-80 w-80 rounded-full bg-card animate-pulse mx-auto" />
           ) : (
-            <>
-              <motion.svg
-                viewBox="0 0 300 300"
-                className="w-full max-w-[300px] drop-shadow-sm"
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.4, ease: "easeOut" }}
-              >
-                {/* Background sectors */}
-                {categories.map((cat, i) => {
-                  const n = categories.length || 1;
-                  const step = 360 / n;
-                  const gap = Math.min(3, step * 0.08);
-                  const bgStart = i * step + gap;
-                  const bgEnd = (i + 1) * step - gap;
-                  return (
-                    <path
-                      key={`bg-${cat.id}`}
-                      d={donutSector(150, 150, 132, 80, bgStart, bgEnd)}
-                      fill={`${cat.color || "#6366f1"}28`}
-                      onClick={() => { setGoalDialogCatId(cat.id); setGoalDialogOpen(true); }}
-                      className="cursor-pointer"
-                    />
-                  );
-                })}
-                {/* Progress fill sectors */}
-                {categories.map((cat, i) => {
-                  const n = categories.length || 1;
-                  const step = 360 / n;
-                  const gap = Math.min(3, step * 0.08);
-                  const bgStart = i * step + gap;
-                  const bgEnd = (i + 1) * step - gap;
-                  const pct = getCategoryPercent(cat.id);
-                  if (pct === 0) return null;
-                  const fillEnd = bgStart + (bgEnd - bgStart) * (pct / 100);
-                  return (
-                    <path
-                      key={`fill-${cat.id}`}
-                      d={donutSector(150, 150, 132, 80, bgStart, fillEnd)}
-                      fill={cat.color || "#6366f1"}
-                      onClick={() => { setGoalDialogCatId(cat.id); setGoalDialogOpen(true); }}
-                      className="cursor-pointer"
-                      style={{ filter: `drop-shadow(0 0 4px ${cat.color || "#6366f1"}66)` }}
-                    />
-                  );
-                })}
-                {/* Emoji labels in the middle of each sector */}
-                {categories.map((cat, i) => {
-                  const n = categories.length || 1;
-                  const step = 360 / n;
-                  const midDeg = (i + 0.5) * step - 90;
-                  const midRad = midDeg * (Math.PI / 180);
-                  const labelR = 106;
-                  const lx = 150 + labelR * Math.cos(midRad);
-                  const ly = 150 + labelR * Math.sin(midRad);
-                  return (
-                    <text
-                      key={`emoji-${cat.id}`}
-                      x={lx}
-                      y={ly}
-                      textAnchor="middle"
-                      dominantBaseline="middle"
-                      fontSize="14"
-                      onClick={() => { setGoalDialogCatId(cat.id); setGoalDialogOpen(true); }}
-                      className="cursor-pointer select-none"
-                    >
-                      {getEmoji(cat)}
-                    </text>
-                  );
-                })}
-                {/* Center overall % */}
-                <text
-                  x="150" y="142"
-                  textAnchor="middle"
-                  dominantBaseline="middle"
-                  fontSize="32"
-                  fontWeight="700"
-                  fill="currentColor"
-                  style={{ fontFamily: "inherit" }}
-                >
-                  {overallPercent}%
-                </text>
-                <text
-                  x="150" y="166"
-                  textAnchor="middle"
-                  dominantBaseline="middle"
-                  fontSize="11"
-                  fill="currentColor"
-                  style={{ opacity: 0.4, fontFamily: "inherit" }}
-                >
-                  баланс
-                </text>
-              </motion.svg>
+            <motion.svg
+              viewBox="0 0 340 385"
+              className="w-full max-w-[390px]"
+              initial={{ opacity: 0, scale: 0.88 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.5, ease: [0.23, 1, 0.32, 1] }}
+            >
+              {/* Background sectors */}
+              {categories.map((cat, i) => {
+                const n = categories.length || 1;
+                const step = 360 / n;
+                const gap = Math.min(3.5, step * 0.09);
+                const bgStart = i * step + gap;
+                const bgEnd = (i + 1) * step - gap;
+                return (
+                  <path
+                    key={`bg-${cat.id}`}
+                    d={donutSector(170, 192, 83, 52, bgStart, bgEnd)}
+                    fill={`${cat.color || "#6366f1"}20`}
+                    onClick={() => { setGoalDialogCatId(cat.id); setGoalDialogOpen(true); }}
+                    className="cursor-pointer"
+                  />
+                );
+              })}
 
-              {/* Category legend grid */}
-              <div className="grid grid-cols-2 gap-2 w-full">
-                {categories.map((cat) => {
-                  const pct = getCategoryPercent(cat.id);
-                  const emoji = getEmoji(cat);
-                  return (
-                    <button
-                      key={cat.id}
-                      onClick={() => { setGoalDialogCatId(cat.id); setGoalDialogOpen(true); }}
-                      className="flex items-center gap-2 px-3 py-2.5 rounded-xl border border-border/30 bg-card text-left active:scale-[0.97] transition-transform"
+              {/* Progress fill sectors */}
+              {categories.map((cat, i) => {
+                const n = categories.length || 1;
+                const step = 360 / n;
+                const gap = Math.min(3.5, step * 0.09);
+                const bgStart = i * step + gap;
+                const bgEnd = (i + 1) * step - gap;
+                const pct = getCategoryPercent(cat.id);
+                if (pct === 0) return null;
+                const fillEnd = bgStart + (bgEnd - bgStart) * (pct / 100);
+                return (
+                  <path
+                    key={`fill-${cat.id}`}
+                    d={donutSector(170, 192, 83, 52, bgStart, fillEnd)}
+                    fill={cat.color || "#6366f1"}
+                    onClick={() => { setGoalDialogCatId(cat.id); setGoalDialogOpen(true); }}
+                    className="cursor-pointer"
+                    style={{ filter: `drop-shadow(0 0 6px ${cat.color || "#6366f1"}70)` }}
+                  />
+                );
+              })}
+
+              {/* Connector lines: ring edge → bubble */}
+              {categories.map((cat, i) => {
+                const n = categories.length || 1;
+                const midRad = ((i + 0.5) * 360 / n - 90) * (Math.PI / 180);
+                const x1 = 170 + 85 * Math.cos(midRad);
+                const y1 = 192 + 85 * Math.sin(midRad);
+                const x2 = 170 + 95 * Math.cos(midRad);
+                const y2 = 192 + 95 * Math.sin(midRad);
+                return (
+                  <line
+                    key={`line-${cat.id}`}
+                    x1={x1} y1={y1} x2={x2} y2={y2}
+                    stroke={cat.color || "#6366f1"}
+                    strokeWidth="1"
+                    strokeOpacity="0.4"
+                  />
+                );
+              })}
+
+              {/* Category bubbles outside the ring */}
+              {categories.map((cat, i) => {
+                const n = categories.length || 1;
+                const midRad = ((i + 0.5) * 360 / n - 90) * (Math.PI / 180);
+                const bx = 170 + 114 * Math.cos(midRad);
+                const by = 192 + 114 * Math.sin(midRad);
+                const pct = getCategoryPercent(cat.id);
+                const emoji = getEmoji(cat);
+                return (
+                  <g
+                    key={`bubble-${cat.id}`}
+                    onClick={() => { setGoalDialogCatId(cat.id); setGoalDialogOpen(true); }}
+                    className="cursor-pointer"
+                  >
+                    {/* Bubble glow */}
+                    <circle cx={bx} cy={by - 6} r={22} fill={`${cat.color || "#6366f1"}12`} />
+                    {/* Bubble circle */}
+                    <circle
+                      cx={bx} cy={by - 6} r={18}
+                      fill={`${cat.color || "#6366f1"}22`}
+                      stroke={`${cat.color || "#6366f1"}60`}
+                      strokeWidth="1.2"
+                    />
+                    {/* Emoji */}
+                    <text
+                      x={bx} y={by - 5}
+                      textAnchor="middle" dominantBaseline="middle"
+                      fontSize="13"
                     >
-                      <span className="text-base shrink-0">{emoji}</span>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[11px] font-medium truncate leading-tight">{cat.name}</p>
-                        <div className="flex items-center gap-1.5 mt-1">
-                          <div className="h-1 flex-1 rounded-full bg-muted overflow-hidden">
-                            <div
-                              className="h-full rounded-full transition-all"
-                              style={{ width: `${pct}%`, backgroundColor: cat.color || "var(--primary)" }}
-                            />
-                          </div>
-                          <span className="text-[10px] text-muted-foreground tabular-nums shrink-0">{pct}%</span>
-                        </div>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </>
+                      {emoji}
+                    </text>
+                    {/* Category name */}
+                    <text
+                      x={bx} y={by + 16}
+                      textAnchor="middle" dominantBaseline="middle"
+                      fontSize="7" fill="currentColor"
+                      style={{ opacity: 0.45, fontFamily: "inherit" }}
+                    >
+                      {cat.name.length > 8 ? cat.name.slice(0, 7) + "…" : cat.name}
+                    </text>
+                    {/* Percentage */}
+                    <text
+                      x={bx} y={by + 26}
+                      textAnchor="middle" dominantBaseline="middle"
+                      fontSize="8" fontWeight="700"
+                      fill={cat.color || "#6366f1"}
+                      style={{ fontFamily: "inherit" }}
+                    >
+                      {pct}%
+                    </text>
+                  </g>
+                );
+              })}
+
+              {/* Center: label + big % + motivation */}
+              <text
+                x="170" y="177"
+                textAnchor="middle" dominantBaseline="middle"
+                fontSize="9" fill="currentColor"
+                style={{ opacity: 0.35, fontFamily: "inherit", letterSpacing: "0.12em" }}
+              >
+                СЕГОДНЯ
+              </text>
+              <text
+                x="170" y="197"
+                textAnchor="middle" dominantBaseline="middle"
+                fontSize="30" fontWeight="700" fill="currentColor"
+                style={{ fontFamily: "inherit" }}
+              >
+                {todayTotal > 0 ? Math.round((todayDone / todayTotal) * 100) : overallPercent}%
+              </text>
+              <text
+                x="170" y="215"
+                textAnchor="middle" dominantBaseline="middle"
+                fontSize="9" fill="currentColor"
+                style={{ opacity: 0.3, fontFamily: "inherit" }}
+              >
+                {ringMotivation(todayTotal > 0 ? Math.round((todayDone / todayTotal) * 100) : overallPercent)}
+              </text>
+            </motion.svg>
           )}
         </div>
       ) : viewMode === "focus" ? (
