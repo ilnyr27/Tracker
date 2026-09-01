@@ -23,6 +23,14 @@ function getSchema(tab: CustomTab): ColDef[] {
   return s?.columns ?? [];
 }
 
+function getCellValue(colLabel: string, rowIdx: number, entries: TabEntry[], cols: ColDef[]): number {
+  const col = cols.find((c) => c.label.toUpperCase() === colLabel.toUpperCase());
+  if (!col || rowIdx < 0 || rowIdx >= entries.length) return 0;
+  const raw = (entries[rowIdx].data as Record<string, unknown>)[col.key];
+  const v = parseFloat(String(raw ?? ""));
+  return isNaN(v) ? 0 : v;
+}
+
 function evalFormula(formula: string, entries: TabEntry[], cols: ColDef[]): string {
   if (!formula.startsWith("=")) return formula;
   const expr = formula.slice(1).trim().toUpperCase();
@@ -43,6 +51,7 @@ function evalFormula(formula: string, entries: TabEntry[], cols: ColDef[]): stri
     return values;
   };
 
+  // SUM/AVG/MAX/MIN/COUNT aggregate functions
   const m = expr.match(/^(SUM|AVG|AVERAGE|MAX|MIN|COUNT)\(([^)]*)\)$/);
   if (m) {
     const [, func, argsStr] = m;
@@ -59,7 +68,28 @@ function evalFormula(formula: string, entries: TabEntry[], cols: ColDef[]): stri
     }
   }
 
-  // Plain number or unknown — return as-is without "="
+  // Cell-reference arithmetic: A1+B1, A1*B2, (A1+B1)/2, etc.
+  // Resolve cell refs like A1, B3 → numeric values, then evaluate arithmetic
+  if (/[A-Z]\d/.test(expr)) {
+    const resolved = expr.replace(/([A-Z]+)(\d+)/g, (_, colLabel, rowStr) => {
+      return String(getCellValue(colLabel, parseInt(rowStr, 10) - 1, entries, cols));
+    });
+    // Only evaluate if result is a safe arithmetic expression
+    if (/^[\s\d+\-*/().]+$/.test(resolved)) {
+      try {
+        // eslint-disable-next-line no-new-func
+        const result = new Function(`"use strict"; return (${resolved})`)();
+        if (typeof result === "number" && isFinite(result)) {
+          // Trim floating point noise
+          return String(parseFloat(result.toFixed(10)));
+        }
+      } catch {
+        return "#ERR";
+      }
+    }
+  }
+
+  // Plain number
   const num = parseFloat(expr);
   if (!isNaN(num)) return String(num);
   return `#ERR`;
@@ -430,14 +460,15 @@ export default function TablesPage() {
                                               onMouseDown={(e) => {
                                                 if (isFormulaMode) {
                                                   e.preventDefault();
+                                                  const ref = `${col.label}${rowIdx + 1}`;
                                                   const input = editInputRef.current;
                                                   const pos = input?.selectionStart ?? editingValue.length;
-                                                  const newVal = editingValue.slice(0, pos) + col.label + editingValue.slice(pos);
+                                                  const newVal = editingValue.slice(0, pos) + ref + editingValue.slice(pos);
                                                   setEditingValue(newVal);
                                                   setTimeout(() => {
                                                     if (input) {
                                                       input.focus();
-                                                      input.setSelectionRange(pos + col.label.length, pos + col.label.length);
+                                                      input.setSelectionRange(pos + ref.length, pos + ref.length);
                                                     }
                                                   }, 0);
                                                 }

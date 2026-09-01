@@ -86,6 +86,15 @@ Next.js 16 App Router · TypeScript · Tailwind CSS · shadcn/ui · Motion · Su
 ### `/settings` — Настройки
 - Тема (светлая/тёмная), акцент-цвет, категории, шаблоны задач
 
+### `/auth/login` — Логин ✅ РЕАЛИЗОВАНО
+**Файл:** `src/app/(auth)/login/page.tsx`
+- Три режима внутри одного экрана: `login` / `signup` / `forgot`
+- **"Забыл пароль?"** — кнопка строка 207, переключает в режим `forgot`
+- В режиме `forgot`: отправляет reset-email через `supabase.auth.resetPasswordForEmail`
+- Redirect после клика по ссылке в email → `/auth/callback?next=/reset-password`
+- `/reset-password` страница существует: `src/app/(app)/reset-password/page.tsx`
+- **НЕ нужно реализовывать — уже готово на 100%**
+
 ---
 
 ## База данных (Supabase tracker-specific)
