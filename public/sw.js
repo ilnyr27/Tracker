@@ -1,7 +1,8 @@
 // Life Tracker Service Worker
-const CACHE_NAME = "tracker-v1";
+const CACHE_NAME = "tracker-v3";
+const STATIC_CACHE = "tracker-static-v3";
 
-// Install — cache shell
+// Install — skip waiting immediately
 self.addEventListener("install", (event) => {
   self.skipWaiting();
 });
@@ -12,12 +13,64 @@ self.addEventListener("activate", (event) => {
     caches.keys().then((names) =>
       Promise.all(
         names
-          .filter((name) => name !== CACHE_NAME)
-          .map((name) => caches.delete(name))
+          .filter((n) => n !== CACHE_NAME && n !== STATIC_CACHE)
+          .map((n) => caches.delete(n))
       )
-    )
+    ).then(() => self.clients.claim())
   );
-  self.clients.claim();
+});
+
+// Fetch — offline caching strategy
+self.addEventListener("fetch", (event) => {
+  const url = new URL(event.request.url);
+
+  // Only GET requests to our own origin
+  if (event.request.method !== "GET") return;
+  if (url.origin !== self.location.origin) return;
+
+  // Static assets (hashed filenames) — cache-first
+  if (
+    url.pathname.startsWith("/_next/static/") ||
+    url.pathname.startsWith("/icons/") ||
+    url.pathname.endsWith(".png") ||
+    url.pathname.endsWith(".svg") ||
+    url.pathname.endsWith(".ico") ||
+    url.pathname.endsWith(".woff2") ||
+    url.pathname.endsWith(".woff")
+  ) {
+    event.respondWith(
+      caches.open(STATIC_CACHE).then((cache) =>
+        cache.match(event.request).then((cached) => {
+          if (cached) return cached;
+          return fetch(event.request).then((response) => {
+            if (response.ok) cache.put(event.request, response.clone());
+            return response;
+          }).catch(() => cached || new Response("", { status: 503 }));
+        })
+      )
+    );
+    return;
+  }
+
+  // API routes — network-only (fail gracefully offline)
+  if (url.pathname.startsWith("/api/")) return;
+
+  // Navigation / page requests — network-first, fallback to cache
+  event.respondWith(
+    fetch(event.request)
+      .then((response) => {
+        if (response.ok) {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+        }
+        return response;
+      })
+      .catch(() =>
+        caches.match(event.request).then(
+          (cached) => cached || caches.match("/today")
+        )
+      )
+  );
 });
 
 // Push notification handler

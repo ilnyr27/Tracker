@@ -18,7 +18,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://tracker-tau-two-64.vercel.app"),
+  metadataBase: new URL("https://tracker27.ru"),
   title: {
     default: "Life OS — трекер жизни",
     template: "%s | Life OS",
