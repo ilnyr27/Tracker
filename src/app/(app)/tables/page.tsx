@@ -490,7 +490,7 @@ export default function TablesPage() {
                                                     if (e.key === "Escape") setEditingCell(null);
                                                     e.stopPropagation();
                                                   }}
-                                                  className="w-full h-7 bg-primary/5 rounded px-2 py-0 outline-none border border-primary/40 text-xs text-foreground min-w-[60px]"
+                                                  className="w-full h-7 bg-primary/5 rounded px-2 py-0 outline-none border border-primary/40 text-xs text-foreground min-w-[60px] max-w-[180px]"
                                                 />
                                               ) : (
                                                 <span className={`text-xs ${cellStr.startsWith("=") ? "text-primary/80 font-mono" : "text-foreground/80"}`}>
