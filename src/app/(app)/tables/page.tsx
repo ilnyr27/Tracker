@@ -250,14 +250,14 @@ export default function TablesPage() {
       );
     });
 
+    setEditingCell(null); // close before async so clicking another cell doesn't get reset
+
     // Find entry and persist
     const entry = tabEntries.get(tabId)?.find((e) => e.id === entryId);
     if (entry) {
       const newData = { ...(entry.data as Record<string, unknown>), [colKey]: editingValue };
       await supabase.from("tab_entries").update({ data: newData }).eq("id", entryId);
     }
-
-    setEditingCell(null);
   }
 
   // ── Column management ───────────────────────────────────────────────────────
@@ -490,7 +490,7 @@ export default function TablesPage() {
                                                     if (e.key === "Escape") setEditingCell(null);
                                                     e.stopPropagation();
                                                   }}
-                                                  className="w-full h-7 bg-primary/5 rounded px-2 py-0 outline-none border border-primary/40 text-xs text-foreground min-w-[60px] max-w-[180px]"
+                                                  className="w-full h-7 bg-primary/5 rounded px-2 py-0 outline-none border border-primary/40 text-xs text-foreground min-w-[20px] max-w-[45px]"
                                                 />
                                               ) : (
                                                 <span className={`text-xs ${cellStr.startsWith("=") ? "text-primary/80 font-mono" : "text-foreground/80"}`}>
