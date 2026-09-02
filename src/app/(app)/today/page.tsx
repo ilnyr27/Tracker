@@ -286,7 +286,13 @@ export default function MainPage() {
   const [editingCatId, setEditingCatId] = useState<string | null>(null);
   const [editCatName, setEditCatName] = useState("");
   const [catMenuOpen, setCatMenuOpen] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<"grid" | "list" | "focus" | "ring">("list");
+  const [viewMode, setViewMode] = useState<"grid" | "list" | "focus" | "ring">(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("life_os_view_mode");
+      if (saved === "grid" || saved === "list" || saved === "focus" || saved === "ring") return saved;
+    }
+    return "list";
+  });
   const [showGoals, setShowGoals] = useState(() => {
     if (typeof window !== "undefined") {
       const saved = localStorage.getItem("life_os_show_goals");
@@ -307,6 +313,10 @@ export default function MainPage() {
     const saved = localStorage.getItem("life_os_status");
     if (saved) setUserStatus(saved);
   }, []);
+
+  useEffect(() => {
+    localStorage.setItem("life_os_view_mode", viewMode);
+  }, [viewMode]);
 
   const loadData = useCallback(async () => {
     setLoading(true);
