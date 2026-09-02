@@ -685,10 +685,6 @@ export default function MainPage() {
               transition={{ duration: 0.55, ease: [0.23, 1, 0.32, 1] }}
             >
               <defs>
-                <filter id="ring-center-glow" x="-60%" y="-60%" width="220%" height="220%">
-                  <feGaussianBlur stdDeviation="4" result="blur" />
-                  <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
-                </filter>
                 <radialGradient id="ring-bg-grad" cx="50%" cy="50%" r="50%">
                   <stop offset="0%" style={{ stopColor: "var(--ring-canvas-1)" }} />
                   <stop offset="100%" style={{ stopColor: "var(--ring-canvas-2)" }} />
@@ -812,7 +808,6 @@ export default function MainPage() {
               <text x="170" y="200" textAnchor="middle" dominantBaseline="middle"
                 fontSize="34" fontWeight="700"
                 style={{ fill: "var(--primary)", fontFamily: "inherit" }}
-                filter="url(#ring-center-glow)"
               >
                 {todayTotal > 0 ? Math.round((todayDone / todayTotal) * 100) : overallPercent}%
               </text>
