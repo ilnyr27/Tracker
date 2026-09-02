@@ -801,7 +801,7 @@ export default function MainPage() {
               {/* Center: big % */}
               <text x="170" y="200" textAnchor="middle" dominantBaseline="middle"
                 fontSize="34" fontWeight="700"
-                style={{ fill: "var(--ring-text-primary)", fontFamily: "inherit" }}
+                style={{ fill: "var(--primary)", fontFamily: "inherit" }}
                 filter="url(#ring-center-glow)"
               >
                 {todayTotal > 0 ? Math.round((todayDone / todayTotal) * 100) : overallPercent}%
