@@ -50,3 +50,7 @@ next-env.d.ts
 .idea/
 skills-lock.json
 query_payload.json
+.claude/
+
+# Reference screenshots (dev only)
+images/
